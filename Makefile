@@ -2,6 +2,9 @@
 # Makefile for SCR1
 #------------------------------------------------------------------------------
 
+
+#Sobyanin
+
 # Detect WSL and set proper executables
 ifeq ($(shell uname -r | grep -i microsoft),)
     # Regular Linux
