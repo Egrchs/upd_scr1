@@ -2,6 +2,31 @@
 # Makefile for SCR1
 #------------------------------------------------------------------------------
 
+# Detect WSL and set proper executables
+ifeq ($(shell uname -r | grep -i microsoft),)
+    # Regular Linux
+    $(info Detected regular Linux environment, using non-.exe commands)
+    VLIB     := vlib
+    VMAP     := vmap
+    VLOG     := vlog
+    MODELSIM := vsim
+else
+    # WSL environment
+    $(info Detected WSL environment, using .exe commands)
+    VLIB     := vlib.exe
+    VMAP     := vmap.exe
+    VLOG     := vlog.exe
+    MODELSIM := vsim.exe
+endif
+
+# Export these variables so they're available in sub-makes
+export VLIB
+export VMAP
+export VLOG
+export MODELSIM
+
+GUI ?= 0
+
 # PARAMETERS
 
 # CFG = <MAX, BASE, MIN, CUSTOM>
@@ -246,19 +271,35 @@ run_vcs: $(test_info)
 	printf "                          Test               | build | simulation \n" ; \
 	printf "$$(cat $(test_results)) \n"
 run_modelsim: $(test_info)
-	$(MAKE) -C $(root_dir)/sim build_modelsim SIM_CFG_DEF=$(SIM_CFG_DEF) SIM_TRACE_DEF=$(SIM_TRACE_DEF) SIM_BUILD_OPTS="$(SIM_BUILD_OPTS)"; \
-	printf "" > $(test_results); \
-	cd $(bld_dir); \
-	vsim -c -do "run -all" +nowarn3691 \
-	+test_info=$(test_info) \
-	+test_results=$(test_results) \
-	+imem_pattern=$(imem_pattern) \
-	+dmem_pattern=$(dmem_pattern) \
-	work.$(top_module) \
-	$(MODELSIM_OPTS) | tee $(sim_results)  ;\
-	printf "Simulation performed on $$(vsim -version) \n" ;\
-	printf "                          Test               | build | simulation \n" ; \
-	printf "$$(cat $(test_results)) \n"
+	$(MAKE) -C $(root_dir)/sim build_modelsim SIM_CFG_DEF=$(SIM_CFG_DEF) SIM_TRACE_DEF=$(SIM_TRACE_DEF) SIM_BUILD_OPTS="$(SIM_BUILD_OPTS)"
+	@echo "Preparing simulation in $(bld_dir)..."
+	@printf "" > $(test_results)
+	@cd $(bld_dir) && \
+	if [ "$(GUI)" = "1" ]; then \
+		echo "Starting ModelSim in GUI mode..."; \
+		$(MODELSIM) -gui -do "run -all; quit -sim" +nowarn3691 \
+			+test_info=$(test_info) \
+			+test_results=$(test_results) \
+			+imem_pattern=$(imem_pattern) \
+			+dmem_pattern=$(dmem_pattern) \
+			work.$(top_module) \
+			$(MODELSIM_OPTS); \
+	else \
+		echo "Starting ModelSim in batch mode..."; \
+		$(MODELSIM) -c -do "run -all; quit -f" +nowarn3691 \
+			+test_info=$(test_info) \
+			+test_results=$(test_results) \
+			+imem_pattern=$(imem_pattern) \
+			+dmem_pattern=$(dmem_pattern) \
+			work.$(top_module) \
+			$(MODELSIM_OPTS) 2>&1 | tee $(sim_results); \
+		echo "\nSimulation performed on $$($(MODELSIM) -version)"; \
+		echo "--------------------------------------------------"; \
+		echo "Test                      | Status  | Time"; \
+		echo "--------------------------------------------------"; \
+		cat $(test_results) | sed 's/^/| /'; \
+		echo "--------------------------------------------------"; \
+	fi
 
 run_ncsim: $(test_info)
 	$(MAKE) -C $(root_dir)/sim build_ncsim SIM_CFG_DEF=$(SIM_CFG_DEF) SIM_TRACE_DEF=$(SIM_TRACE_DEF) SIM_BUILD_OPTS="$(SIM_BUILD_OPTS)";
