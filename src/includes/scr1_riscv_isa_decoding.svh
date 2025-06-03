@@ -33,7 +33,8 @@ typedef enum logic [6:2] {
     SCR1_OPCODE_BRANCH      = 5'b11000,
     SCR1_OPCODE_JALR        = 5'b11001,
     SCR1_OPCODE_JAL         = 5'b11011,
-    SCR1_OPCODE_SYSTEM      = 5'b11100
+    SCR1_OPCODE_SYSTEM      = 5'b11100,
+    SCR1_OPCODE_FP          = 5'b10100
 } type_scr1_rvi_opcode_e;
 
 
@@ -55,7 +56,7 @@ localparam SCR1_IALU_CMD_ALL_NUM_E    = 23;
 `else // ~SCR1_RVM_EXT
 localparam SCR1_IALU_CMD_ALL_NUM_E    = 15;
 `endif // ~SCR1_RVM_EXT
-localparam SCR1_IALU_CMD_WIDTH_E      = $clog2(SCR1_IALU_CMD_ALL_NUM_E);
+localparam SCR1_IALU_CMD_WIDTH_E      = $clog2(SCR1_IALU_CMD_ALL_NUM_E+16);
 typedef enum logic [SCR1_IALU_CMD_WIDTH_E-1:0] {
     SCR1_IALU_CMD_NONE  = '0,   // IALU disable
     SCR1_IALU_CMD_AND,          // op1 & op2
@@ -71,7 +72,23 @@ typedef enum logic [SCR1_IALU_CMD_WIDTH_E-1:0] {
     SCR1_IALU_CMD_SUB_GEU,      // op1 u>= op2
     SCR1_IALU_CMD_SLL,          // op1 << op2
     SCR1_IALU_CMD_SRL,          // op1 >> op2
-    SCR1_IALU_CMD_SRA           // op1 >>> op2
+    SCR1_IALU_CMD_SRA,          // op1 >>> op2
+    SCR1_FPU_CMD_FADD   ,
+    SCR1_FPU_CMD_FSUB   ,
+    SCR1_FPU_CMD_FMUL   ,
+    SCR1_FPU_CMD_FMIN   ,
+    SCR1_FPU_CMD_FMAX   ,
+    SCR1_FPU_CMD_FSGNJ  ,
+    SCR1_FPU_CMD_FSGNJN ,
+    SCR1_FPU_CMD_FSGNJX ,
+    SCR1_FPU_CMD_FEQ    ,
+    SCR1_FPU_CMD_FLT    ,
+    SCR1_FPU_CMD_FLE    ,
+    SCR1_FPU_CMD_FCVTWS ,
+    SCR1_FPU_CMD_FCVTSW ,
+    SCR1_FPU_CMD_FCVTWUS,
+    SCR1_FPU_CMD_FCVTSWU,
+    SCR1_FPU_CMD_FCLASS
 `ifdef SCR1_RVM_EXT
     ,
     SCR1_IALU_CMD_MUL,          // low(unsig(op1) * unsig(op2))
@@ -113,7 +130,9 @@ typedef enum logic [SCR1_LSU_CMD_WIDTH_E-1:0] {
     SCR1_LSU_CMD_LHU,
     SCR1_LSU_CMD_SB,
     SCR1_LSU_CMD_SH,
-    SCR1_LSU_CMD_SW
+    SCR1_LSU_CMD_SW,
+    SCR1_LSU_CMD_FLW,   // Load float (32-bit FP)
+    SCR1_LSU_CMD_FSW    // Store float (32-bit FP)
 } type_scr1_lsu_cmd_sel_e;
 
 //-------------------------------------------------------------------------------
