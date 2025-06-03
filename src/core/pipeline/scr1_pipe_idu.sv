@@ -271,7 +271,64 @@ always_comb begin
                         if (instr[11] | instr[19] | instr[24])  rve_illegal = 1'b1;
 `endif  // SCR1_RVE_EXT
                     end // SCR1_OPCODE_OP
-
+                            SCR1_OPCODE_FP              : begin
+                              idu2exu_use_rs1_o         = 1'b1;
+                              idu2exu_use_rs2_o         = 1'b1;
+                              //idu2exu_use_rd_o          = 1'b1;
+                              idu2exu_cmd_o.ialu_op     = SCR1_IALU_OP_REG_REG;
+                              idu2exu_cmd_o.rd_wb_sel   = SCR1_RD_WB_IALU;
+                              case (funct7)
+                                  7'd0 : begin
+                                      case (funct3)
+                                          3'b000  : idu2exu_cmd_o.ialu_cmd  = SCR1_FPU_CMD_FADD;
+                                      endcase
+                                  end
+                                  7'd4 : begin
+                                      case (funct3)
+                                          3'b000  : idu2exu_cmd_o.ialu_cmd  = SCR1_FPU_CMD_FSUB;
+                                      endcase
+                                  end
+                                  7'd20 : begin
+                                      case (funct3)
+                                          3'b000  : idu2exu_cmd_o.ialu_cmd  = SCR1_FPU_CMD_FMIN;
+                                          3'b000  : idu2exu_cmd_o.ialu_cmd  = SCR1_FPU_CMD_FMAX;
+                                      endcase
+                                  end
+                                  7'd8 : begin
+                                      case (funct3)
+                                          3'b000  : idu2exu_cmd_o.ialu_cmd  = SCR1_FPU_CMD_FMUL;
+                                      endcase
+                                  end
+                                  7'd16 : begin
+                                      case (funct3)
+                                          3'b000  : idu2exu_cmd_o.ialu_cmd  = SCR1_FPU_CMD_FSGNJ;
+                                          3'b000  : idu2exu_cmd_o.ialu_cmd  = SCR1_FPU_CMD_FSGNJN;
+                                          3'b000  : idu2exu_cmd_o.ialu_cmd  = SCR1_FPU_CMD_FSGNJX;
+                                      endcase
+                                  end
+                                  7'd80 : begin
+                                      case (funct3)
+                                          3'b000  : idu2exu_cmd_o.ialu_cmd  = SCR1_FPU_CMD_FEQ;
+                                          3'b000  : idu2exu_cmd_o.ialu_cmd  = SCR1_FPU_CMD_FLT;
+                                          3'b000  : idu2exu_cmd_o.ialu_cmd  = SCR1_FPU_CMD_FLE;
+                                      endcase
+                                  end
+                                  7'd96 : begin
+                                      case (funct3)
+                                          3'b000  : idu2exu_cmd_o.ialu_cmd  = SCR1_FPU_CMD_FCVTWS;
+                                          3'b000  : idu2exu_cmd_o.ialu_cmd  = SCR1_FPU_CMD_FCVTSW;
+                                          3'b000  : idu2exu_cmd_o.ialu_cmd  = SCR1_FPU_CMD_FCVTWUS;
+                                          3'b000  : idu2exu_cmd_o.ialu_cmd  = SCR1_FPU_CMD_FCVTSWU;
+                                      endcase
+                                  end
+                                  7'd112 : begin
+                                      case (funct3)
+                                          3'b000  : idu2exu_cmd_o.ialu_cmd  = SCR1_FPU_CMD_FCLASS;
+                                      endcase
+                                  end
+                                  default : rvi_illegal = 1'b1;
+                              endcase // funct7
+                          end // SCR1_OPCODE_OP
                     SCR1_OPCODE_OP_IMM          : begin
                         idu2exu_use_rs1_o         = 1'b1;
 `ifndef SCR1_NO_EXE_STAGE
