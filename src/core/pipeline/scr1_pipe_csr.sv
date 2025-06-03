@@ -134,10 +134,24 @@ module scr1_pipe_csr (
 `else
     localparam PC_LSB = 2;
 `endif
-
+localparam FCSR_FFLAGS_OFFSET = 0;  // Позиция флагов исключений FP
+localparam FCSR_FRM_OFFSET    = 5;  // Позиция режима округления FP
+localparam FCSR_FRM_WIDTH     = 3;  // Ширина поля режима округления
+localparam SCR1_CSR_ADDR_FCSR = 12'h003;
+localparam FRM_RNE = 3'b000;  // Round to Nearest, ties to Even
+localparam FRM_RTZ = 3'b001;  // Round towards Zero
+localparam FRM_RDN = 3'b010;  // Round Down (towards -inf)
+localparam FRM_RUP = 3'b011;  // Round Up (towards +inf)
+localparam FRM_RMM = 3'b100;  // Round to Nearest, ties to Max Magnitude
 //------------------------------------------------------------------------------
 // Local signals declaration
 //------------------------------------------------------------------------------
+//FCSR
+logic                                       csr_fcsr_upd;        // FCSR update enable
+logic [`SCR1_XLEN-1:0]                      csr_fcsr;            // Aggregated FCSR
+logic [4:0]                                 csr_fcsr_fflags_ff;  // FCSR: Exception flags
+logic [2:0]                                 csr_fcsr_frm_ff;
+
 
 // Machine Trap Setup registers
 //------------------------------------------------------------------------------
@@ -314,6 +328,25 @@ end
 assign exu_req_no_exc = ((exu2csr_r_req_i & ~csr_r_exc)
                       |  (exu2csr_w_req_i & ~csr_w_exc));
 
+
+
+// FCSR register
+always_ff @(negedge rst_n, posedge clk) begin
+    if (~rst_n) begin
+        csr_fcsr_fflags_ff <= '0;
+        csr_fcsr_frm_ff    <= '0;
+    end else if (csr_fcsr_upd) begin
+        csr_fcsr_fflags_ff <= csr_w_data[FCSR_FFLAGS_OFFSET +: 5];
+        csr_fcsr_frm_ff    <= csr_w_data[FCSR_FRM_OFFSET +: FCSR_FRM_WIDTH];
+    end
+end
+
+always_comb begin
+    csr_fcsr = '0;
+    csr_fcsr[FCSR_FFLAGS_OFFSET +: 5] = csr_fcsr_fflags_ff;
+    csr_fcsr[FCSR_FRM_OFFSET +: FCSR_FRM_WIDTH] = csr_fcsr_frm_ff;
+end
+
 //------------------------------------------------------------------------------
 // CSR read/write interface
 //------------------------------------------------------------------------------
@@ -353,6 +386,8 @@ always_comb begin
         SCR1_CSR_ADDR_MCAUSE    : csr_r_data    = {csr_mcause_i_ff, type_scr1_csr_mcause_ec_v'(csr_mcause_ec_ff)};
         SCR1_CSR_ADDR_MTVAL     : csr_r_data    = csr_mtval_ff;
         SCR1_CSR_ADDR_MIP       : csr_r_data    = csr_mip;
+
+        SCR1_CSR_ADDR_FCSR      : csr_r_data    = csr_fcsr;
 
         // User Counters/Timers (read-only)
         {SCR1_CSR_ADDR_HPMCOUNTER_MASK, 5'b?????}   : begin
@@ -476,6 +511,7 @@ always_comb begin
         SCR1_CSR_CMD_WRITE  : csr_w_data =  exu2csr_w_data_i;
         SCR1_CSR_CMD_SET    : csr_w_data =  exu2csr_w_data_i | csr_r_data;
         SCR1_CSR_CMD_CLEAR  : csr_w_data = ~exu2csr_w_data_i & csr_r_data;
+        SCR1_CSR_ADDR_FCSR  : csr_fcsr_upd  = 1'b1;
         default             : csr_w_data = '0;
     endcase
 end
