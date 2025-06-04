@@ -119,7 +119,7 @@ typedef enum logic [SCR1_SUM2_OP_WIDTH_E-1:0] {
 //-------------------------------------------------------------------------------
 // LSU commands
 //-------------------------------------------------------------------------------
-localparam SCR1_LSU_CMD_ALL_NUM_E   = 9;
+localparam SCR1_LSU_CMD_ALL_NUM_E   = 11;
 localparam SCR1_LSU_CMD_WIDTH_E     = $clog2(SCR1_LSU_CMD_ALL_NUM_E);
 typedef enum logic [SCR1_LSU_CMD_WIDTH_E-1:0] {
     SCR1_LSU_CMD_NONE = '0,

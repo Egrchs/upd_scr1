@@ -57,7 +57,9 @@ module scr1_pipe_lsu (
     output  logic [`SCR1_DMEM_DWIDTH-1:0]       lsu2dmem_wdata_o,           // Data memory write data
     input   logic                               dmem2lsu_req_ack_i,         // Data memory request acknowledge
     input   logic [`SCR1_DMEM_DWIDTH-1:0]       dmem2lsu_rdata_i,           // Data memory read data
-    input   type_scr1_mem_resp_e                dmem2lsu_resp_i             // Data memory response
+    input   type_scr1_mem_resp_e                dmem2lsu_resp_i            // Data memory response
+
+
 );
 
 //------------------------------------------------------------------------------
@@ -90,6 +92,8 @@ logic                       dmem_cmd_store;     // DMEM Command is store
 logic                       dmem_wdth_word;     // DMEM data width is WORD
 logic                       dmem_wdth_hword;    // DMEM data width is HALFWORD
 logic                       dmem_wdth_byte;     // DMEM data width is BYTE
+logic                       dmem_cmd_fload;     // DMEM command is floating-point load
+logic                       dmem_cmd_fstore;    // DMEM Command is floating-point store
 
 // DMEM response and request control signals
 logic                       dmem_resp_ok;       // DMEM response is OK
@@ -121,14 +125,20 @@ assign dmem_cmd_load  = (exu2lsu_cmd_i == SCR1_LSU_CMD_LB )
                       | (exu2lsu_cmd_i == SCR1_LSU_CMD_LBU)
                       | (exu2lsu_cmd_i == SCR1_LSU_CMD_LH )
                       | (exu2lsu_cmd_i == SCR1_LSU_CMD_LHU)
-                      | (exu2lsu_cmd_i == SCR1_LSU_CMD_LW );
+                      | (exu2lsu_cmd_i == SCR1_LSU_CMD_LW )
+                      | (exu2lsu_cmd_i == SCR1_LSU_CMD_FLW);
 assign dmem_cmd_store = (exu2lsu_cmd_i == SCR1_LSU_CMD_SB )
                       | (exu2lsu_cmd_i == SCR1_LSU_CMD_SH )
-                      | (exu2lsu_cmd_i == SCR1_LSU_CMD_SW );
+                      | (exu2lsu_cmd_i == SCR1_LSU_CMD_SW )
+                      | (exu2lsu_cmd_i == SCR1_LSU_CMD_FSW);
 
+assign dmem_cmd_fload = (exu2lsu_cmd_i == SCR1_LSU_CMD_FLW);  // Специфичная для FP load
+assign dmem_cmd_fstore = (exu2lsu_cmd_i == SCR1_LSU_CMD_FSW); // Специфичная для FP store
 // LSU data width flags
 assign dmem_wdth_word  = (exu2lsu_cmd_i == SCR1_LSU_CMD_LW )
-                       | (exu2lsu_cmd_i == SCR1_LSU_CMD_SW );
+                       | (exu2lsu_cmd_i == SCR1_LSU_CMD_SW )
+                       | (exu2lsu_cmd_i == SCR1_LSU_CMD_FLW)  // Добавлено
+                       | (exu2lsu_cmd_i == SCR1_LSU_CMD_FSW);  // Добавлено
 assign dmem_wdth_hword = (exu2lsu_cmd_i == SCR1_LSU_CMD_LH )
                        | (exu2lsu_cmd_i == SCR1_LSU_CMD_LHU)
                        | (exu2lsu_cmd_i == SCR1_LSU_CMD_SH );
@@ -157,6 +167,8 @@ assign lsu_cmd_ff_store = (lsu_cmd_ff == SCR1_LSU_CMD_SB )
                         | (lsu_cmd_ff == SCR1_LSU_CMD_SH )
                         | (lsu_cmd_ff == SCR1_LSU_CMD_SW );
 
+assign lsu_cmd_ff_fload  = (lsu_cmd_ff == SCR1_LSU_CMD_FLW);
+assign lsu_cmd_ff_fstore = (lsu_cmd_ff == SCR1_LSU_CMD_FSW);
 //------------------------------------------------------------------------------
 // LSU FSM
 //------------------------------------------------------------------------------
@@ -228,6 +240,10 @@ assign lsu_exc_req = dmem_addr_mslgn_l | dmem_addr_mslgn_s
                    | lsu_exc_hwbrk
 `endif // SCR1_TDU_EN
 ;
+//------------------------------------------------------------------------------
+// LSU <-> FPU interface
+//------------------------------------------------------------------------------
+
 
 //------------------------------------------------------------------------------
 // LSU <-> EXU interface
@@ -243,6 +259,7 @@ always_comb begin
         SCR1_LSU_CMD_LHU: lsu2exu_ldata_o = { 16'b0,                     dmem2lsu_rdata_i[15:0]};
         SCR1_LSU_CMD_LB : lsu2exu_ldata_o = {{24{dmem2lsu_rdata_i[7]}},  dmem2lsu_rdata_i[7:0]};
         SCR1_LSU_CMD_LBU: lsu2exu_ldata_o = { 24'b0,                     dmem2lsu_rdata_i[7:0]};
+        SCR1_LSU_CMD_FLW: lsu2exu_ldata_o = dmem2lsu_rdata_i;  // Для floating-point просто передаем данные как есть
         default         : lsu2exu_ldata_o = dmem2lsu_rdata_i;
     endcase // lsu_cmd_ff
 end
