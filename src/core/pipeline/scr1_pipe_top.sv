@@ -160,6 +160,17 @@ logic                                       exu2mprf_w_req;         // MPRF writ
 logic [`SCR1_MPRF_AWIDTH-1:0]               exu2mprf_rd_addr;       // MPRF rd write address
 logic [`SCR1_XLEN-1:0]                      exu2mprf_rd_data;       // MPRF rd write data
 
+// EXU <-> FPRF
+logic [`SCR1_FPRF_AWIDTH-1:0]               exu2fprf_rs1_addr;      // FPRF rs1 read address
+logic [`SCR1_XLEN-1:0]                      fprf2exu_rs1_data;      // FPRF rs1 read data
+logic [`SCR1_FPRF_AWIDTH-1:0]               exu2fprf_rs2_addr;      // FPRF rs2 read address
+logic [`SCR1_XLEN-1:0]                      fprf2exu_rs2_data;      // FPRF rs2 read data
+logic [`SCR1_FPRF_AWIDTH-1:0]               exu2fprf_rs3_addr;      // FPRF rs3 read address
+logic [`SCR1_XLEN-1:0]                      fprf2exu_rs3_data;      // FPRF rs3 read data
+logic                                       exu2fprf_w_req;         // FPRF write request
+logic [`SCR1_FPRF_AWIDTH-1:0]               exu2fprf_rd_addr;       // FPRF rd write address
+logic [`SCR1_XLEN-1:0]                      exu2fprf_rd_data;       // FPRF rd write data
+
 // EXU <-> CSR
 logic [SCR1_CSR_ADDR_WIDTH-1:0]             exu2csr_rw_addr;        // CSR read/write address
 logic                                       exu2csr_r_req;          // CSR read request
@@ -390,6 +401,17 @@ scr1_pipe_exu i_pipe_exu (
     .exu2mprf_rd_addr_o             (exu2mprf_rd_addr        ),
     .exu2mprf_rd_data_o             (exu2mprf_rd_data        ),
 
+        // EXU <-> FPRF interface
+    .exu2fprf_frs1_addr_o            (exu2fprf_rs1_addr       ),
+    .fprf2exu_frs1_data_i            (fprf2exu_rs1_data       ),
+    .exu2fprf_frs2_addr_o            (exu2fprf_rs2_addr       ),
+    .fprf2exu_frs2_data_i            (fprf2exu_rs2_data       ),
+    .exu2fprf_frs3_addr_o            (exu2fprf_rs3_addr       ),
+    .fprf2exu_frs3_data_i            (fprf2exu_rs3_data       ),
+    .exu2fprf_w_req_o               (exu2fprf_w_req          ),
+    .exu2fprf_frd_addr_o             (exu2fprf_rd_addr        ),
+    .exu2fprf_frd_data_o             (exu2fprf_rd_data        ),
+
     // EXU <-> CSR read/write interface
     .exu2csr_rw_addr_o              (exu2csr_rw_addr         ),
     .exu2csr_r_req_o                (exu2csr_r_req           ),
@@ -488,6 +510,27 @@ scr1_pipe_mprf i_pipe_mprf (
     .exu2mprf_w_req_i       (exu2mprf_w_req   ),
     .exu2mprf_rd_addr_i     (exu2mprf_rd_addr ),
     .exu2mprf_rd_data_i     (exu2mprf_rd_data )
+);
+
+//-------------------------------------------------------------------------------
+// FMulti-port register file
+//-------------------------------------------------------------------------------
+scr1_pipe_fprf i_pipe_fprf (
+`ifdef SCR1_FPRF_RST_EN
+    .rst_n                  (pipe_rst_n       ),
+`endif // SCR1_MPRF_RST_EN
+    .clk                    (clk              ),
+
+    // EXU <-> MPRF interface
+    .exu2fprf_frs1_addr_i    (exu2fprf_rs1_addr),
+    .fprf2exu_frs1_data_o    (fprf2exu_rs1_data),
+    .exu2fprf_frs2_addr_i    (exu2fprf_rs2_addr),
+    .fprf2exu_frs2_data_o    (fprf2exu_rs2_data),
+    .exu2fprf_frs3_addr_i    (exu2fprf_rs3_addr),
+    .fprf2exu_frs3_data_o    (fprf2exu_rs3_data),
+    .exu2fprf_w_req_i        (exu2fprf_w_req   ),
+    .exu2fprf_frd_addr_i     (exu2fprf_rd_addr ),
+    .exu2fprf_frd_data_i     (exu2fprf_rd_data )
 );
 
 //-------------------------------------------------------------------------------

@@ -14,7 +14,7 @@ module scr1_pipe_fpu (
     input   logic                           fpu_req_i,          // FPU operation request
     output  logic                           fpu_rdy_o,          // FPU ready for new operation
     input   type_scr1_fpu_cmd_e             fpu_cmd_i,          // FPU operation command
-    input   type_scr1_fpu_round_mode_e      fpu_rm_i,           // Rounding mode
+
 
     // Operand interface
     input   logic [`SCR1_XLEN-1:0]          fpu_op1_i,          // Operand 1 (rs1)
