@@ -17,6 +17,7 @@
 
 // Width of main registers and buses
 `define SCR1_XLEN               32
+`define SCR1_FLEN               32
 `define SCR1_IMEM_AWIDTH        `SCR1_XLEN
 `define SCR1_IMEM_DWIDTH        `SCR1_XLEN
 `define SCR1_DMEM_AWIDTH        `SCR1_XLEN

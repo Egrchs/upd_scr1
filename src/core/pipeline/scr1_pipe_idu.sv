@@ -43,7 +43,13 @@ module scr1_pipe_idu
     output  logic                           idu2exu_use_rd_o,       // Instruction uses rd
     output  logic                           idu2exu_use_imm_o,      // Instruction uses immediate
 `endif // SCR1_NO_EXE_STAGE
-    input   logic                           exu2idu_rdy_i           // EXU ready for new data
+    input   logic                           exu2idu_rdy_i,           // EXU ready for new data
+        // FPU-related signals
+    output  logic                           idu2exu_use_frs1_o,     // Instruction uses frs1 (FP)
+    output  logic                           idu2exu_use_frs2_o,     // Instruction uses frs2 (FP)
+    output  logic                           idu2exu_use_frs3_o,     // Instruction uses frs3 (FP)
+    output  logic                           idu2exu_use_frd_o,      // Instruction uses frd (FP)
+    output  logic [2:0]                     idu2exu_frm_o           // FP rounding mode
 );
 
 //-------------------------------------------------------------------------------
@@ -72,6 +78,8 @@ logic                               rvc_illegal;
 `ifdef SCR1_RVE_EXT
 logic                               rve_illegal;
 `endif  // SCR1_RVE_EXT
+logic                               fpu_illegal;
+logic [2:0]                         frm;
 
 //-------------------------------------------------------------------------------
 // Instruction decoding
@@ -90,8 +98,14 @@ assign funct3       = (instr_type == SCR1_INSTR_RVI) ? instr[14:12] : instr[15:1
 assign funct7       = instr[31:25];                                                 // RVI
 assign funct12      = instr[31:20];                                                 // RVI (SYSTEM)
 assign shamt        = instr[24:20];                                                 // RVI
+// FP rounding mode (funct3 for FP instructions)
+assign frm          = funct3;
+
+// FPU outputs
+assign idu2exu_frm_o = frm;
 
 // RV32I(MC) decode
+// RV32I(MC) + F decode
 always_comb begin
     // Defaults
     idu2exu_cmd_o.instr_rvc   = 1'b0;
@@ -114,15 +128,25 @@ always_comb begin
     idu2exu_cmd_o.exc_req     = 1'b0;
     idu2exu_cmd_o.exc_code    = SCR1_EXC_CODE_INSTR_MISALIGN;
 
+    // FPU defaults
+    idu2exu_cmd_o.fpu_cmd     = SCR1_FPU_CMD_NONE;
+    idu2exu_cmd_o.fpu_op      = SCR1_FPU_OP_REG_REG;
+    idu2exu_cmd_o.fpu_rm      = frm;
+
     // Clock gating
     idu2exu_use_rs1_o         = 1'b0;
     idu2exu_use_rs2_o         = 1'b0;
+    idu2exu_use_frs1_o        = 1'b0;
+    idu2exu_use_frs2_o        = 1'b0;
+    idu2exu_use_frs3_o        = 1'b0;
 `ifndef SCR1_NO_EXE_STAGE
     idu2exu_use_rd_o          = 1'b0;
+    idu2exu_use_frd_o         = 1'b0;
     idu2exu_use_imm_o         = 1'b0;
 `endif // SCR1_NO_EXE_STAGE
 
     rvi_illegal             = 1'b0;
+    fpu_illegal             = 1'b0;
 `ifdef SCR1_RVE_EXT
     rve_illegal             = 1'b0;
 `endif  // SCR1_RVE_EXT
@@ -137,6 +161,113 @@ always_comb begin
         idu2exu_cmd_o.instr_rvc   = ifu2idu_err_rvi_hi_i;
     end else begin  // no imem fault
         case (instr_type)
+        SCR1_OPCODE_FLOAD     : begin
+                        idu2exu_use_rs1_o         = 1'b1;
+`ifndef SCR1_NO_EXE_STAGE
+                        idu2exu_use_frd_o         = 1'b1;
+                        idu2exu_use_imm_o         = 1'b1;
+`endif // SCR1_NO_EXE_STAGE
+                        idu2exu_cmd_o.sum2_op     = SCR1_SUM2_OP_REG_IMM;
+                        idu2exu_cmd_o.rd_wb_sel   = SCR1_RD_WB_FPU;
+                        idu2exu_cmd_o.imm         = {{21{instr[31]}}, instr[30:20]};
+                        case (funct3)
+                            3'b010  : idu2exu_cmd_o.lsu_cmd = SCR1_LSU_CMD_FLW;
+                            default : fpu_illegal = 1'b1;
+                        endcase
+                    end
+
+                    // Floating-Point Store
+                    SCR1_OPCODE_FSTORE    : begin
+                        idu2exu_use_rs1_o         = 1'b1;
+                        idu2exu_use_frs2_o        = 1'b1;
+`ifndef SCR1_NO_EXE_STAGE
+                        idu2exu_use_imm_o         = 1'b1;
+`endif // SCR1_NO_EXE_STAGE
+                        idu2exu_cmd_o.sum2_op     = SCR1_SUM2_OP_REG_IMM;
+                        idu2exu_cmd_o.imm         = {{21{instr[31]}}, instr[30:25], instr[11:7]};
+                        case (funct3)
+                            3'b010  : idu2exu_cmd_o.lsu_cmd = SCR1_LSU_CMD_FSW;
+                            default : fpu_illegal = 1'b1;
+                        endcase
+                    end
+
+                    // Floating-Point Arithmetic
+                    SCR1_OPCODE_FP_OP     : begin
+                        idu2exu_use_frs1_o        = 1'b1;
+                        idu2exu_use_frs2_o        = 1'b1;
+`ifndef SCR1_NO_EXE_STAGE
+                        idu2exu_use_frd_o         = 1'b1;
+`endif // SCR1_NO_EXE_STAGE
+                        idu2exu_cmd_o.rd_wb_sel   = SCR1_RD_WB_FPU;
+                        case (funct7)
+                            7'b0000000 : begin
+                                case (funct3)
+                                    3'b000  : idu2exu_cmd_o.fpu_cmd = SCR1_FPU_CMD_FADD;
+                                    3'b001  : idu2exu_cmd_o.fpu_cmd = SCR1_FPU_CMD_FSUB;
+                                    3'b010  : idu2exu_cmd_o.fpu_cmd = SCR1_FPU_CMD_FMUL;
+                                    3'b011  : idu2exu_cmd_o.fpu_cmd = SCR1_FPU_CMD_FDIV;
+                                    3'b100  : idu2exu_cmd_o.fpu_cmd = SCR1_FPU_CMD_FSQRT;
+                                    3'b101  : idu2exu_cmd_o.fpu_cmd = SCR1_FPU_CMD_FSGNJ;
+                                    3'b110  : idu2exu_cmd_o.fpu_cmd = SCR1_FPU_CMD_FMIN_MAX;
+                                    3'b111  : idu2exu_cmd_o.fpu_cmd = SCR1_FPU_CMD_FCMP;
+                                    default : fpu_illegal = 1'b1;
+                                endcase
+                            end
+                            7'b0100000 : begin
+                                case (funct3)
+                                    3'b000  : idu2exu_cmd_o.fpu_cmd = SCR1_FPU_CMD_FCVT_W_S;
+                                    3'b001  : idu2exu_cmd_o.fpu_cmd = SCR1_FPU_CMD_FCVT_S_W;
+                                    default : fpu_illegal = 1'b1;
+                                endcase
+                            end
+                            default : fpu_illegal = 1'b1;
+                        endcase
+                    end
+
+                    // Fused FP Operations
+                    SCR1_OPCODE_FMADD      : begin
+                        idu2exu_use_frs1_o        = 1'b1;
+                        idu2exu_use_frs2_o        = 1'b1;
+                        idu2exu_use_frs3_o        = 1'b1;
+`ifndef SCR1_NO_EXE_STAGE
+                        idu2exu_use_frd_o         = 1'b1;
+`endif // SCR1_NO_EXE_STAGE
+                        idu2exu_cmd_o.rd_wb_sel   = SCR1_RD_WB_FPU;
+                        idu2exu_cmd_o.fpu_cmd     = SCR1_FPU_CMD_FMADD;
+                    end
+
+                    SCR1_OPCODE_FMSUB      : begin
+                        idu2exu_use_frs1_o        = 1'b1;
+                        idu2exu_use_frs2_o        = 1'b1;
+                        idu2exu_use_frs3_o        = 1'b1;
+`ifndef SCR1_NO_EXE_STAGE
+                        idu2exu_use_frd_o         = 1'b1;
+`endif // SCR1_NO_EXE_STAGE
+                        idu2exu_cmd_o.rd_wb_sel   = SCR1_RD_WB_FPU;
+                        idu2exu_cmd_o.fpu_cmd     = SCR1_FPU_CMD_FMSUB;
+                    end
+
+                    SCR1_OPCODE_FNMSUB     : begin
+                        idu2exu_use_frs1_o        = 1'b1;
+                        idu2exu_use_frs2_o        = 1'b1;
+                        idu2exu_use_frs3_o        = 1'b1;
+`ifndef SCR1_NO_EXE_STAGE
+                        idu2exu_use_frd_o         = 1'b1;
+`endif // SCR1_NO_EXE_STAGE
+                        idu2exu_cmd_o.rd_wb_sel   = SCR1_RD_WB_FPU;
+                        idu2exu_cmd_o.fpu_cmd     = SCR1_FPU_CMD_FNMSUB;
+                    end
+
+                    SCR1_OPCODE_FNMADD     : begin
+                        idu2exu_use_frs1_o        = 1'b1;
+                        idu2exu_use_frs2_o        = 1'b1;
+                        idu2exu_use_frs3_o        = 1'b1;
+`ifndef SCR1_NO_EXE_STAGE
+                        idu2exu_use_frd_o         = 1'b1;
+`endif // SCR1_NO_EXE_STAGE
+                        idu2exu_cmd_o.rd_wb_sel   = SCR1_RD_WB_FPU;
+                        idu2exu_cmd_o.fpu_cmd     = SCR1_FPU_CMD_FNMADD;
+                    end
             SCR1_INSTR_RVI  : begin
                 idu2exu_cmd_o.rs1_addr    = instr[19:15];
                 idu2exu_cmd_o.rs2_addr    = instr[24:20];
@@ -271,64 +402,7 @@ always_comb begin
                         if (instr[11] | instr[19] | instr[24])  rve_illegal = 1'b1;
 `endif  // SCR1_RVE_EXT
                     end // SCR1_OPCODE_OP
-                            SCR1_OPCODE_FP              : begin
-                              idu2exu_use_rs1_o         = 1'b1;
-                              idu2exu_use_rs2_o         = 1'b1;
-                              //idu2exu_use_rd_o          = 1'b1;
-                              idu2exu_cmd_o.ialu_op     = SCR1_IALU_OP_REG_REG;
-                              idu2exu_cmd_o.rd_wb_sel   = SCR1_RD_WB_IALU;
-                              case (funct7)
-                                  7'd0 : begin
-                                      case (funct3)
-                                          3'b000  : idu2exu_cmd_o.ialu_cmd  = SCR1_FPU_CMD_FADD;
-                                      endcase
-                                  end
-                                  7'd4 : begin
-                                      case (funct3)
-                                          3'b000  : idu2exu_cmd_o.ialu_cmd  = SCR1_FPU_CMD_FSUB;
-                                      endcase
-                                  end
-                                  7'd20 : begin
-                                      case (funct3)
-                                          3'b000  : idu2exu_cmd_o.ialu_cmd  = SCR1_FPU_CMD_FMIN;
-                                          3'b000  : idu2exu_cmd_o.ialu_cmd  = SCR1_FPU_CMD_FMAX;
-                                      endcase
-                                  end
-                                  7'd8 : begin
-                                      case (funct3)
-                                          3'b000  : idu2exu_cmd_o.ialu_cmd  = SCR1_FPU_CMD_FMUL;
-                                      endcase
-                                  end
-                                  7'd16 : begin
-                                      case (funct3)
-                                          3'b000  : idu2exu_cmd_o.ialu_cmd  = SCR1_FPU_CMD_FSGNJ;
-                                          3'b000  : idu2exu_cmd_o.ialu_cmd  = SCR1_FPU_CMD_FSGNJN;
-                                          3'b000  : idu2exu_cmd_o.ialu_cmd  = SCR1_FPU_CMD_FSGNJX;
-                                      endcase
-                                  end
-                                  7'd80 : begin
-                                      case (funct3)
-                                          3'b000  : idu2exu_cmd_o.ialu_cmd  = SCR1_FPU_CMD_FEQ;
-                                          3'b000  : idu2exu_cmd_o.ialu_cmd  = SCR1_FPU_CMD_FLT;
-                                          3'b000  : idu2exu_cmd_o.ialu_cmd  = SCR1_FPU_CMD_FLE;
-                                      endcase
-                                  end
-                                  7'd96 : begin
-                                      case (funct3)
-                                          3'b000  : idu2exu_cmd_o.ialu_cmd  = SCR1_FPU_CMD_FCVTWS;
-                                          3'b000  : idu2exu_cmd_o.ialu_cmd  = SCR1_FPU_CMD_FCVTSW;
-                                          3'b000  : idu2exu_cmd_o.ialu_cmd  = SCR1_FPU_CMD_FCVTWUS;
-                                          3'b000  : idu2exu_cmd_o.ialu_cmd  = SCR1_FPU_CMD_FCVTSWU;
-                                      endcase
-                                  end
-                                  7'd112 : begin
-                                      case (funct3)
-                                          3'b000  : idu2exu_cmd_o.ialu_cmd  = SCR1_FPU_CMD_FCLASS;
-                                      endcase
-                                  end
-                                  default : rvi_illegal = 1'b1;
-                              endcase // funct7
-                          end // SCR1_OPCODE_OP
+ // SCR1_OPCODE_OP
                     SCR1_OPCODE_OP_IMM          : begin
                         idu2exu_use_rs1_o         = 1'b1;
 `ifndef SCR1_NO_EXE_STAGE

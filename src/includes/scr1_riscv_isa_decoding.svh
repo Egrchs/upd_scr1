@@ -72,23 +72,7 @@ typedef enum logic [SCR1_IALU_CMD_WIDTH_E-1:0] {
     SCR1_IALU_CMD_SUB_GEU,      // op1 u>= op2
     SCR1_IALU_CMD_SLL,          // op1 << op2
     SCR1_IALU_CMD_SRL,          // op1 >> op2
-    SCR1_IALU_CMD_SRA,          // op1 >>> op2
-    SCR1_FPU_CMD_FADD   ,
-    SCR1_FPU_CMD_FSUB   ,
-    SCR1_FPU_CMD_FMUL   ,
-    SCR1_FPU_CMD_FMIN   ,
-    SCR1_FPU_CMD_FMAX   ,
-    SCR1_FPU_CMD_FSGNJ  ,
-    SCR1_FPU_CMD_FSGNJN ,
-    SCR1_FPU_CMD_FSGNJX ,
-    SCR1_FPU_CMD_FEQ    ,
-    SCR1_FPU_CMD_FLT    ,
-    SCR1_FPU_CMD_FLE    ,
-    SCR1_FPU_CMD_FCVTWS ,
-    SCR1_FPU_CMD_FCVTSW ,
-    SCR1_FPU_CMD_FCVTWUS,
-    SCR1_FPU_CMD_FCVTSWU,
-    SCR1_FPU_CMD_FCLASS
+    SCR1_IALU_CMD_SRA          // op1 >>> op2
 `ifdef SCR1_RVM_EXT
     ,
     SCR1_IALU_CMD_MUL,          // low(unsig(op1) * unsig(op2))
@@ -115,6 +99,51 @@ typedef enum logic [SCR1_SUM2_OP_WIDTH_E-1:0] {
     SCR1_SUM2_OP_ERROR = 'x
 `endif // SCR1_XPROP_EN
 } type_scr1_ialu_sum2_op_sel_e;
+
+
+//-------------------------------------------------------------------------------
+// FPU main operands
+//-------------------------------------------------------------------------------
+typedef enum logic {
+    SCR1_FPU_OP_REG_REG,  // FP operation between two registers (e.g., FADD.S)
+    SCR1_FPU_OP_REG_IMM   // FP operation with immediate (rare, but possible for some extensions)
+} type_scr1_fpu_op_e;
+
+// Floating-Point Opcodes
+localparam SCR1_OPCODE_FLOAD     = 5'b00001;  // FLW
+localparam SCR1_OPCODE_FSTORE    = 5'b01001;  // FSW
+localparam SCR1_OPCODE_FMADD     = 5'b10000;  // FMADD.S
+localparam SCR1_OPCODE_FMSUB     = 5'b10001;  // FMSUB.S
+localparam SCR1_OPCODE_FNMSUB    = 5'b10010;  // FNMSUB.S
+localparam SCR1_OPCODE_FNMADD    = 5'b10011;  // FNMADD.S
+localparam SCR1_OPCODE_FP_OP     = 5'b10100;  // FP arithmetic (FADD.S, FSUB.S, FMUL.S, FDIV.S, e
+
+// FPU Commands
+typedef enum logic [3:0] {
+    SCR1_FPU_CMD_NONE      = 4'h0,  // No operation
+    SCR1_FPU_CMD_FADD      = 4'h1,  // FP Add
+    SCR1_FPU_CMD_FSUB      = 4'h2,  // FP Subtract
+    SCR1_FPU_CMD_FMUL      = 4'h3,  // FP Multiply
+    SCR1_FPU_CMD_FDIV      = 4'h4,  // FP Divide
+    SCR1_FPU_CMD_FSQRT     = 4'h5,  // FP Square Root
+    SCR1_FPU_CMD_FSGNJ     = 4'h6,  // FP Sign Injection
+    SCR1_FPU_CMD_FMIN_MAX  = 4'h7,  // FP Min/Max
+    SCR1_FPU_CMD_FCMP      = 4'h8,  // FP Compare
+    SCR1_FPU_CMD_FCVT_W_S  = 4'h9,  // FP Convert from Word to Single
+    SCR1_FPU_CMD_FCVT_S_W  = 4'hA,  // FP Convert from Single to Word
+    SCR1_FPU_CMD_FMADD     = 4'hB,  // FP Fused Multiply-Add
+    SCR1_FPU_CMD_FMSUB     = 4'hC,  // FP Fused Multiply-Sub
+    SCR1_FPU_CMD_FNMSUB    = 4'hD,  // FP Fused Negated Multiply-Sub
+    SCR1_FPU_CMD_FNMADD    = 4'hE   // FP Fused Negated Multiply-Add
+} type_scr1_fpu_cmd_e;
+
+// FP Rounding Modes (funct3 for FP instructions)
+localparam SCR1_FRM_RNE    = 3'b000;  // Round to Nearest, ties to Even
+localparam SCR1_FRM_RTZ    = 3'b001;  // Round towards Zero
+localparam SCR1_FRM_RDN    = 3'b010;  // Round Down (towards -inf)
+localparam SCR1_FRM_RUP    = 3'b011;  // Round Up (towards +inf)
+localparam SCR1_FRM_RMM    = 3'b100;  // Round to Nearest, ties to Max Magnitude
+localparam SCR1_FRM_DYN    = 3'b111;  // Dynamic Rounding Mode (from CSR)
 
 //-------------------------------------------------------------------------------
 // LSU commands
@@ -160,7 +189,7 @@ typedef enum logic [SCR1_CSR_CMD_WIDTH_E-1:0] {
 //-------------------------------------------------------------------------------
 // MPRF rd writeback source
 //-------------------------------------------------------------------------------
-localparam SCR1_RD_WB_ALL_NUM_E = 7;
+localparam SCR1_RD_WB_ALL_NUM_E = 8;
 localparam SCR1_RD_WB_WIDTH_E   = $clog2(SCR1_RD_WB_ALL_NUM_E);
 typedef enum logic [SCR1_RD_WB_WIDTH_E-1:0] {
     SCR1_RD_WB_NONE = '0,
@@ -169,7 +198,8 @@ typedef enum logic [SCR1_RD_WB_WIDTH_E-1:0] {
     SCR1_RD_WB_IMM,             // LUI
     SCR1_RD_WB_INC_PC,          // JAL(R)
     SCR1_RD_WB_LSU,             // Load from DMEM
-    SCR1_RD_WB_CSR              // Read CSR
+    SCR1_RD_WB_CSR,              // Read CSR
+    SCR1_RD_WB_FPU
 } type_scr1_rd_wb_sel_e;
 
 //-------------------------------------------------------------------------------
@@ -198,6 +228,14 @@ typedef struct packed {
                                                         // used as instruction field for illegal instruction exception
     logic                               exc_req;
     type_scr1_exc_code_e                exc_code;
+    logic                       fpu_req;        // FP operation request
+    type_scr1_fpu_cmd_e         fpu_cmd;        // FP operation command
+    logic                       fpu_rs1_en;     // FP RS1 enable
+    logic                       fpu_rs2_en;     // FP RS2 enable
+    logic                       fpu_rs3_en;     // FP RS3 enable (for FMA)
+    logic                       fpu_rd_en;      // FP RD enable
+    logic [2:0]                 fpu_rm;         // FP rounding mode
+    type_scr1_fpu_op_e          fpu_op;         // FP operation type (REG_REG, REG_IMM, etc.)
 } type_scr1_exu_cmd_s;
 
 `endif // SCR1_RISCV_ISA_DECODING_SVH
