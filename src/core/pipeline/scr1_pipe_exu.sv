@@ -71,6 +71,11 @@ module scr1_pipe_exu (
     input   logic                               idu2exu_use_imm_i,          // Clock gating on imm field
 `endif // SCR1_NO_EXE_STAGE
 
+    input   logic                               idu2exu_use_frs1_i,          // Clock gating on frs1_addr field
+    input   logic                               idu2exu_use_frs2_i,          // Clock gating on frs2_addr field
+    input   logic                               idu2exu_use_frs3_i,          // Clock gating on frs3_addr field
+    input   logic                               idu2exu_use_frd_i,           // Clock gating on frd_addr field
+
     // EXU <-> MPRF interface
     output  logic [`SCR1_MPRF_AWIDTH-1:0]       exu2mprf_rs1_addr_o,        // MPRF rs1 read address
     input   logic [`SCR1_XLEN-1:0]              mprf2exu_rs1_data_i,        // MPRF rs1 read data
@@ -79,6 +84,17 @@ module scr1_pipe_exu (
     output  logic                               exu2mprf_w_req_o,           // MPRF write request
     output  logic [`SCR1_MPRF_AWIDTH-1:0]       exu2mprf_rd_addr_o,         // MPRF rd write address
     output  logic [`SCR1_XLEN-1:0]              exu2mprf_rd_data_o,         // MPRF rd write data
+
+    // EXU <-> FPRF interface
+    output  logic [`SCR1_FPRF_AWIDTH-1:0]       exu2fprf_frs1_addr_o,        // FPRF frs1 read address
+    input   logic [`SCR1_XLEN-1:0]              fprf2exu_frs1_data_i,        // FPRF frs1 read data
+    output  logic [`SCR1_FPRF_AWIDTH-1:0]       exu2fprf_frs2_addr_o,        // FPRF frs2 read address
+    input   logic [`SCR1_XLEN-1:0]              fprf2exu_frs2_data_i,        // FPRF frs2 read data
+    output  logic [`SCR1_FPRF_AWIDTH-1:0]       exu2fprf_frs3_addr_o,        // FPRF frs3 read address
+    input   logic [`SCR1_XLEN-1:0]              fprf2exu_frs3_data_i,        // FPRF frs3 read data
+    output  logic                               exu2fprf_w_req_o,            // FPRF write request
+    output  logic [`SCR1_FPRF_AWIDTH-1:0]       exu2fprf_frd_addr_o,         // FPRF frd write address
+    output  logic [`SCR1_XLEN-1:0]              exu2fprf_frd_data_o,         // FPRF frd write data
 
     // EXU <-> CSR read/write interface
     output  logic [SCR1_CSR_ADDR_WIDTH-1:0]     exu2csr_rw_addr_o,          // CSR read/write address
@@ -201,7 +217,23 @@ logic                               exu_queue_vd_upd;
 logic                               exu_queue_vd_ff;
 logic                               exu_queue_vd_next;
 `endif // SCR1_NO_EXE_STAGE
+// Local signals declaration
+logic                               fpu_rdy;
+logic                               fpu_vd;
+logic [`SCR1_XLEN-1:0]              fpu_op1;
+logic [`SCR1_XLEN-1:0]              fpu_op2;
+logic [`SCR1_XLEN-1:0]              fpu_op3;
+logic [`SCR1_XLEN-1:0]              fpu_res;
+logic                               fpu_exc_req;
+type_scr1_exc_code_e                fpu_exc_code;
 
+// FPRF signals
+logic                               fprf_frs1_req;
+logic                               fprf_frs2_req;
+logic                               fprf_frs3_req;
+logic [`SCR1_FPRF_AWIDTH-1:0]       fprf_frs1_addr;
+logic [`SCR1_FPRF_AWIDTH-1:0]       fprf_frs2_addr;
+logic [`SCR1_FPRF_AWIDTH-1:0]       fprf_frs3_addr;
 // IALU signals
 //------------------------------------------------------------------------------
 `ifdef SCR1_RVM_EXT
@@ -367,6 +399,20 @@ always_ff @(posedge clk) begin
         if (idu2exu_use_imm_i) begin
             exu_queue.imm        <= idu2exu_cmd_i.imm;
         end
+         exu_queue.fpu_op         <= idu2exu_cmd_i.fpu_op;          // Добавить в type_scr1_exu_cmd_s
+        exu_queue.fpu_cmd        <= idu2exu_cmd_i.fpu_cmd;         // Добавить в type_scr1_exu_cmd_s
+        if (idu2exu_use_frs1_i) begin
+            exu_queue.frs1_addr  <= idu2exu_cmd_i.frs1_addr;       // Добавить в type_scr1_exu_cmd_s
+        end
+        if (idu2exu_use_frs2_i) begin
+            exu_queue.frs2_addr  <= idu2exu_cmd_i.frs2_addr;       // Добавить в type_scr1_exu_cmd_s
+        end
+        if (idu2exu_use_frs3_i) begin
+            exu_queue.frs3_addr  <= idu2exu_cmd_i.frs3_addr;       // Добавить в type_scr1_exu_cmd_s
+        end
+        if (idu2exu_use_frd_i) begin
+            exu_queue.frd_addr   <= idu2exu_cmd_i.frd_addr;        // Добавить в type_scr1_exu_cmd_s
+        end
     end
 end
 
@@ -491,7 +537,20 @@ assign exu_exc_req  = exu_queue_vd & (exu_queue.exc_req | lsu_exc_req
   `endif // SCR1_DBG_EN
 `endif // SCR1_TDU_EN
                                                         );
+// FPU operands fetch
+assign fpu_vd = exu_queue_vd & (exu_queue.fpu_cmd != SCR1_FPU_CMD_NONE);
 
+always_comb begin
+    if (~fpu_vd) begin
+        fpu_op1 = '0;
+        fpu_op2 = '0;
+        fpu_op3 = '0;
+    end else begin
+        fpu_op1 = fprf2exu_frs1_data_i;
+        fpu_op2 = fprf2exu_frs2_data_i;
+        fpu_op3 = fprf2exu_frs3_data_i;
+    end
+end
 // EXU exception request register
 //------------------------------------------------------------------------------
 
@@ -511,6 +570,8 @@ assign exu_exc_req_next = hdu2exu_dbg_halt2run_i ? 1'b0 : exu_exc_req;
 // Exception code encoder
 //------------------------------------------------------------------------------
 
+
+
 always_comb begin
     case (1'b1)
 `ifdef SCR1_TDU_EN
@@ -520,14 +581,14 @@ always_comb begin
 `endif // SCR1_TDU_EN
         exu_queue.exc_req  : exc_code = exu_queue.exc_code;
         lsu_exc_req        : exc_code = lsu_exc_code;
+        fpu_exc_req        : exc_code = fpu_exc_code;
         csr2exu_rw_exc_i   : exc_code = SCR1_EXC_CODE_ILLEGAL_INSTR;
 `ifndef SCR1_RVC_EXT
         jb_misalign        : exc_code = SCR1_EXC_CODE_INSTR_MISALIGN;
 `endif // ~SCR1_RVC_EXT
         default            : exc_code = SCR1_EXC_CODE_ECALL_M;
-    endcase // 1'b1
+    endcase
 end
-
 // Exception trap value multiplexer
 //------------------------------------------------------------------------------
 
@@ -801,6 +862,7 @@ always_comb begin
 `ifdef SCR1_RVM_EXT
         ialu_vd                 : exu_rdy = ialu_rdy;
 `endif // SCR1_RVM_EXT
+        fpu_vd                  : exu_rdy = fpu_rdy;
         csr2exu_mstatus_mie_up_i: exu_rdy = 1'b0;
         default                 : exu_rdy = 1'b1;
     endcase
@@ -888,6 +950,29 @@ always_comb begin
         default          : exu2mprf_rd_data_o = ialu_main_res;
     endcase
 end
+
+// FPRF write back
+assign exu2fprf_w_req_o = (exu_queue.frd_addr != '0) & exu_queue_vd & ~exu_exc_req & fpu_rdy
+`ifdef SCR1_DBG_EN
+                        & ~hdu2exu_no_commit_i
+`endif // SCR1_DBG_EN
+                        ;
+
+assign exu2fprf_frd_addr_o = `SCR1_FPRF_AWIDTH'(exu_queue.frd_addr);
+assign exu2fprf_frd_data_o = fpu_res;
+
+// FPRF read operands
+assign fprf_frs1_req = exu_queue_vd & idu2exu_use_frs1_i;
+assign fprf_frs2_req = exu_queue_vd & idu2exu_use_frs2_i;
+assign fprf_frs3_req = exu_queue_vd & idu2exu_use_frs3_i;
+
+assign fprf_frs1_addr = exu_queue.frs1_addr[`SCR1_FPRF_AWIDTH-1:0];
+assign fprf_frs2_addr = exu_queue.frs2_addr[`SCR1_FPRF_AWIDTH-1:0];
+assign fprf_frs3_addr = exu_queue.frs3_addr[`SCR1_FPRF_AWIDTH-1:0];
+
+assign exu2fprf_frs1_addr_o = fprf_frs1_req ? fprf_frs1_addr : '0;
+assign exu2fprf_frs2_addr_o = fprf_frs2_req ? fprf_frs2_addr : '0;
+assign exu2fprf_frs3_addr_o = fprf_frs3_req ? fprf_frs3_addr : '0;
 
 //------------------------------------------------------------------------------
 // EXU <-> CSR interface

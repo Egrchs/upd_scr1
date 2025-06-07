@@ -20,6 +20,9 @@
   `define SCR1_MPRF_SIZE      32
 `endif // SCR1_RVE_EXT
 
+  `define SCR1_FPRF_AWIDTH    5
+  `define SCR1_FPRF_SIZE      32
+
 typedef logic [`SCR1_XLEN-1:0]  type_scr1_mprf_v;
 typedef logic [`SCR1_XLEN-1:0]  type_scr1_pc_v;
 
