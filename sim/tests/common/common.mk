@@ -12,7 +12,8 @@ $(CFLAGS_ARCH) \
 -DFLAGS_STR=\"$(FLAGS_STR)\" \
 $(ADD_CFLAGS)
 
-LDFLAGS = -L/usr/lib/picolibc/riscv64-unknown-elf/lib/rv32imac/ilp32 -L/usr/lib/gcc/riscv64-unknown-elf/13.2.0/rv32imac/ilp32 -nostartfiles -nostdlib -lc -lgcc -march=rv32$(ARCH)_zicsr_zifencei -mabi=$(ABI)
+# LDFLAGS = -L/usr/lib/picolibc/riscv64-unknown-elf/lib/rv32imac/ilp32 -L/usr/lib/gcc/riscv64-unknown-elf/13.2.0/rv32imac/ilp32 -nostartfiles -nostdlib -lc -lgcc -march=rv32$(ARCH)_zicsr_zifencei -mabi=$(ABI)
+LDFLAGS   = -L$(LIB_C_PATH) -L$(LIB_GCC_PATH) -nostartfiles -nostdlib -lc -lgcc -march=rv32$(ARCH)_zicsr_zifencei -mabi=$(ABI)
 
 ifeq (,$(findstring 0,$(TCM)))
 ld_script ?= $(inc_dir)/link_tcm.ld

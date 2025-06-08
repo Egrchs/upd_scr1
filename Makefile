@@ -3,7 +3,29 @@
 #------------------------------------------------------------------------------
 
 
-#Sobyanin
+# ======================================================================
+#   АВТОМАТИЧЕСКОЕ ОПРЕДЕЛЕНИЕ ПУТЕЙ
+# ======================================================================
+# Используем shell-команды для поиска путей. Работает в системах на базе Debian.
+INCLUDE_PATH := $(shell dpkg -L picolibc-riscv64-unknown-elf 2>/dev/null | grep '/include/string.h$$' | head -n 1 | xargs -r dirname)
+LIB_C_PATH   := $(shell dpkg -L picolibc-riscv64-unknown-elf 2>/dev/null | grep '/rv32imac/ilp32/libc.a$$' | head -n 1 | xargs -r dirname)
+LIB_GCC_PATH := $(shell dpkg -L gcc-riscv64-unknown-elf 2>/dev/null | grep '/rv32imac/ilp32/libgcc.a$$' | head -n 1 | xargs -r dirname)
+
+# Проверяем, что все пути были найдены. Если нет - останавливаемся с ошибкой.
+ifeq ($(INCLUDE_PATH),)
+  $(error "ERROR: Could not find picolibc include path. Please run: sudo apt install picolibc-riscv64-unknown-elf")
+endif
+ifeq ($(LIB_C_PATH),)
+  $(error "ERROR: Could not find 32-bit picolibc library path. Please run: sudo apt install picolibc-riscv64-unknown-elf")
+endif
+ifeq ($(LIB_GCC_PATH),)
+  $(error "ERROR: Could not find 32-bit gcc library path. Please run: sudo apt install gcc-riscv64-unknown-elf")
+endif
+
+# Экспортируем переменные, чтобы они были доступны в дочерних Make-файлах
+export LIB_C_PATH
+export LIB_GCC_PATH
+# ======================================================================
 
 # Detect WSL and set proper executables
 ifeq ($(shell uname -r | grep -i microsoft),)
@@ -166,7 +188,8 @@ sim_results  := $(bld_dir)/sim_results.txt
 todo_list    := $(bld_dir)/todo.txt
 # Environment
 export CROSS_PREFIX  ?= riscv64-unknown-elf-
-export RISCV_GCC     := $(CROSS_PREFIX)gcc -I/usr/lib/picolibc/riscv64-unknown-elf/include
+# Используем наш автоматически найденный путь к include
+export RISCV_GCC     := $(CROSS_PREFIX)gcc -I$(INCLUDE_PATH)
 export RISCV_OBJDUMP ?= $(CROSS_PREFIX)objdump -D
 export RISCV_OBJCOPY ?= $(CROSS_PREFIX)objcopy -O verilog
 export RISCV_READELF ?= $(CROSS_PREFIX)readelf -s
