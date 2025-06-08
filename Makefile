@@ -3,7 +3,29 @@
 #------------------------------------------------------------------------------
 
 
-#Sobyanin
+# ======================================================================
+#   АВТОМАТИЧЕСКОЕ ОПРЕДЕЛЕНИЕ ПУТЕЙ
+# ======================================================================
+# Используем shell-команды для поиска путей. Работает в системах на базе Debian.
+INCLUDE_PATH := $(shell dpkg -L picolibc-riscv64-unknown-elf 2>/dev/null | grep '/include/string.h$$' | head -n 1 | xargs -r dirname)
+LIB_C_PATH   := $(shell dpkg -L picolibc-riscv64-unknown-elf 2>/dev/null | grep '/rv32imac/ilp32/libc.a$$' | head -n 1 | xargs -r dirname)
+LIB_GCC_PATH := $(shell dpkg -L gcc-riscv64-unknown-elf 2>/dev/null | grep '/rv32imac/ilp32/libgcc.a$$' | head -n 1 | xargs -r dirname)
+
+# Проверяем, что все пути были найдены. Если нет - останавливаемся с ошибкой.
+ifeq ($(INCLUDE_PATH),)
+  $(error "ERROR: Could not find picolibc include path. Please run: sudo apt install picolibc-riscv64-unknown-elf")
+endif
+ifeq ($(LIB_C_PATH),)
+  $(error "ERROR: Could not find 32-bit picolibc library path. Please run: sudo apt install picolibc-riscv64-unknown-elf")
+endif
+ifeq ($(LIB_GCC_PATH),)
+  $(error "ERROR: Could not find 32-bit gcc library path. Please run: sudo apt install gcc-riscv64-unknown-elf")
+endif
+
+# Экспортируем переменные, чтобы они были доступны в дочерних Make-файлах
+export LIB_C_PATH
+export LIB_GCC_PATH
+# ======================================================================
 
 # Detect WSL and set proper executables
 ifeq ($(shell uname -r | grep -i microsoft),)
@@ -123,6 +145,14 @@ endif
 # Use this parameter to pass additional options for simulation build command
 SIM_BUILD_OPTS ?=
 
+ifneq ($(shell uname -r | grep -i microsoft),)
+# Мы находимся в среде WSL
+	ifeq ($(findstring modelsim,$(MAKECMDGOALS)),modelsim)
+        # И цель запуска содержит "modelsim"
+		SIM_BUILD_OPTS += +define+USE_WSL_WRAPPER
+    endif
+endif
+
 # Use this parameter to set the list of tests to run
 # TARGETS = <riscv_isa, riscv_compliance, riscv_arch, coremark, dhrystone21, hello, isr_sample>
 export TARGETS :=
@@ -158,7 +188,8 @@ sim_results  := $(bld_dir)/sim_results.txt
 todo_list    := $(bld_dir)/todo.txt
 # Environment
 export CROSS_PREFIX  ?= riscv64-unknown-elf-
-export RISCV_GCC     ?= $(CROSS_PREFIX)gcc
+# Используем наш автоматически найденный путь к include
+export RISCV_GCC     := $(CROSS_PREFIX)gcc -I$(INCLUDE_PATH)
 export RISCV_OBJDUMP ?= $(CROSS_PREFIX)objdump -D
 export RISCV_OBJCOPY ?= $(CROSS_PREFIX)objcopy -O verilog
 export RISCV_READELF ?= $(CROSS_PREFIX)readelf -s
@@ -285,6 +316,7 @@ run_modelsim: $(test_info)
 			+test_results=$(test_results) \
 			+imem_pattern=$(imem_pattern) \
 			+dmem_pattern=$(dmem_pattern) \
+			+bld_dir=$(bld_dir) \
 			work.$(top_module) \
 			$(MODELSIM_OPTS); \
 	else \
@@ -294,6 +326,7 @@ run_modelsim: $(test_info)
 			+test_results=$(test_results) \
 			+imem_pattern=$(imem_pattern) \
 			+dmem_pattern=$(dmem_pattern) \
+			+bld_dir=$(bld_dir) \
 			work.$(top_module) \
 			$(MODELSIM_OPTS) 2>&1 | tee $(sim_results); \
 		echo "\nSimulation performed on $$($(MODELSIM) -version)"; \
