@@ -123,6 +123,14 @@ endif
 # Use this parameter to pass additional options for simulation build command
 SIM_BUILD_OPTS ?=
 
+ifneq ($(shell uname -r | grep -i microsoft),)
+# Мы находимся в среде WSL
+	ifeq ($(findstring modelsim,$(MAKECMDGOALS)),modelsim)
+        # И цель запуска содержит "modelsim"
+		SIM_BUILD_OPTS += +define+USE_WSL_WRAPPER
+    endif
+endif
+
 # Use this parameter to set the list of tests to run
 # TARGETS = <riscv_isa, riscv_compliance, riscv_arch, coremark, dhrystone21, hello, isr_sample>
 export TARGETS :=
@@ -158,7 +166,7 @@ sim_results  := $(bld_dir)/sim_results.txt
 todo_list    := $(bld_dir)/todo.txt
 # Environment
 export CROSS_PREFIX  ?= riscv64-unknown-elf-
-export RISCV_GCC     ?= $(CROSS_PREFIX)gcc
+export RISCV_GCC     := $(CROSS_PREFIX)gcc -I/usr/lib/picolibc/riscv64-unknown-elf/include
 export RISCV_OBJDUMP ?= $(CROSS_PREFIX)objdump -D
 export RISCV_OBJCOPY ?= $(CROSS_PREFIX)objcopy -O verilog
 export RISCV_READELF ?= $(CROSS_PREFIX)readelf -s
@@ -285,6 +293,7 @@ run_modelsim: $(test_info)
 			+test_results=$(test_results) \
 			+imem_pattern=$(imem_pattern) \
 			+dmem_pattern=$(dmem_pattern) \
+			+bld_dir=$(bld_dir) \
 			work.$(top_module) \
 			$(MODELSIM_OPTS); \
 	else \
@@ -294,6 +303,7 @@ run_modelsim: $(test_info)
 			+test_results=$(test_results) \
 			+imem_pattern=$(imem_pattern) \
 			+dmem_pattern=$(dmem_pattern) \
+			+bld_dir=$(bld_dir) \
 			work.$(top_module) \
 			$(MODELSIM_OPTS) 2>&1 | tee $(sim_results); \
 		echo "\nSimulation performed on $$($(MODELSIM) -version)"; \

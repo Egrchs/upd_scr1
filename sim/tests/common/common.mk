@@ -12,7 +12,7 @@ $(CFLAGS_ARCH) \
 -DFLAGS_STR=\"$(FLAGS_STR)\" \
 $(ADD_CFLAGS)
 
-LDFLAGS   ?= -nostartfiles -nostdlib -lc -lgcc -march=rv32$(ARCH)_zicsr_zifencei -mabi=$(ABI) --specs=nano.specs $(ADD_LDFLAGS)
+LDFLAGS = -L/usr/lib/picolibc/riscv64-unknown-elf/lib/rv32imac/ilp32 -L/usr/lib/gcc/riscv64-unknown-elf/13.2.0/rv32imac/ilp32 -nostartfiles -nostdlib -lc -lgcc -march=rv32$(ARCH)_zicsr_zifencei -mabi=$(ABI)
 
 ifeq (,$(findstring 0,$(TCM)))
 ld_script ?= $(inc_dir)/link_tcm.ld
@@ -38,7 +38,7 @@ $(bld_dir)/%.o: %.c
 	$(RISCV_GCC) $(CFLAGS) -c $(incs) $< -o $@
 
 $(bld_dir)/%.elf: $(ld_script) $(c_objs) $(asm_objs)
-	$(RISCV_GCC) -o $@ -T $^ $(LDFLAGS)
+	$(RISCV_GCC) -v -o $@ -T $^ $(LDFLAGS)
 
 $(bld_dir)/%.hex: $(bld_dir)/%.elf
 	$(RISCV_OBJCOPY) $^ $@
