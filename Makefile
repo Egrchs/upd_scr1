@@ -170,10 +170,26 @@ MODELSIM_OPTS  ?=
 NCSIM_OPTS     ?=
 VERILATOR_OPTS ?=
 
-current_goal := $(MAKECMDGOALS:run_%=%)
-ifeq ($(current_goal),)
-    current_goal := verilator
+# --- ЛОГИКА ОПРЕДЕЛЕНИЯ ПУТИ СБОРКИ ---
+
+# Список всех "основных" целей, которые определяют тип симулятора
+PRIMARY_GOALS := run_vcs run_modelsim run_ncsim run_verilator run_verilator_wf \
+                 run_vcs_compile run_modelsim_compile run_ncsim_compile \
+                 run_verilator_compile run_verilator_wf_compile
+
+# Находим первую из основных целей, указанную в командной строке.
+# Игнорируем 'compile', так как это мета-цель и не должна влиять на путь.
+current_primary_goal := $(firstword $(filter-out compile, $(filter $(PRIMARY_GOALS), $(MAKECMDGOALS))))
+
+# Если основная цель не указана (например, `make` или `make compile`), используем verilator по умолчанию.
+ifeq ($(current_primary_goal),)
+    current_primary_goal := run_verilator
 endif
+
+# Преобразуем полную цель в короткое имя для пути
+current_goal := $(current_primary_goal:run_%=%)
+
+# --- КОНЕЦ ЛОГИКИ ОПРЕДЕЛЕНИЯ ПУТИ ---
 
 # Paths
 export root_dir := $(shell pwd)
@@ -249,7 +265,10 @@ ifeq (,$(strip $(TARGETS)))
 endif
 
 # Targets
-.PHONY: tests run_modelsim run_vcs run_ncsim run_verilator run_verilator_wf
+.PHONY: tests compile \
+        run_vcs run_modelsim run_ncsim run_verilator run_verilator_wf \
+        run_vcs_compile run_modelsim_compile run_ncsim_compile \
+        run_verilator_compile run_verilator_wf_compile
 
 default: clean_test_list run_verilator
 
@@ -289,8 +308,68 @@ hello: | $(bld_dir)
 clean_hex: | $(bld_dir)
 	$(RM) $(bld_dir)/*.hex
 
+mips_custom_tests: | $(bld_dir)
+	$(MAKE) -C $(tst_dir)/mips_custom_tests
+
 $(bld_dir):
 	mkdir -p $(bld_dir)
+
+#==============================================================================
+# Meta-Targets (NEW SECTION)
+#==============================================================================
+
+# Список инструментов для проверки компиляции
+COMPILE_TOOLS := vcs modelsim ncsim verilator verilator_wf
+
+#==============================================================================
+# Meta-Targets (NEW SECTION)
+#==============================================================================
+
+# Список инструментов для проверки компиляции
+COMPILE_TOOLS := vcs modelsim ncsim verilator verilator_wf
+
+compile:
+	@$(RM) -r $(root_dir)/build/compile_status
+	@mkdir -p $(root_dir)/build/compile_status
+	@echo "--- Starting full compilation check for all simulators ---"
+	@passed_count=0; \
+	failed_count=0; \
+	for tool in $(COMPILE_TOOLS); do \
+		echo ""; \
+		echo "=========================================================="; \
+		echo "INFO: Checking compilation for: $$tool"; \
+		echo "=========================================================="; \
+		if $(MAKE) run_$${tool}_compile; then \
+			echo "SUCCESS" > $(root_dir)/build/compile_status/$${tool}.status; \
+			echo "INFO: $$tool compilation SUCCEEDED."; \
+			passed_count=$$((passed_count + 1)); \
+		else \
+			echo "FAILURE" > $(root_dir)/build/compile_status/$${tool}.status; \
+			echo "ERROR: $$tool compilation FAILED."; \
+			failed_count=$$((failed_count + 1)); \
+		fi; \
+	done; \
+	echo ""; \
+	echo "=========================================================="; \
+	echo "               Compilation Summary"; \
+	echo "=========================================================="; \
+	printf "%-25s | %s\n" "Simulator" "Status"; \
+	echo "--------------------------+-----------"; \
+	for tool in $(COMPILE_TOOLS); do \
+		status=$$(cat $(root_dir)/build/compile_status/$${tool}.status); \
+		printf "%-25s | %s\n" "run_$${tool}_compile" "$$status"; \
+	done; \
+	echo "--------------------------+-----------"; \
+	echo "Total Passed: $$passed_count, Total Failed: $$failed_count"; \
+	echo "=========================================================="; \
+	if [ $$failed_count -ne 0 ]; then \
+		echo "ERROR: Some compilations failed."; \
+		exit 1; \
+	fi
+
+#==============================================================================
+# Run Targets (Compile + Simulate)
+#==============================================================================
 
 run_vcs: $(test_info)
 	$(MAKE) -C $(root_dir)/sim build_vcs SIM_CFG_DEF=$(SIM_CFG_DEF) SIM_TRACE_DEF=$(SIM_TRACE_DEF) SIM_BUILD_OPTS="$(SIM_BUILD_OPTS)";
@@ -304,6 +383,7 @@ run_vcs: $(test_info)
 	$(VCS_OPTS) | tee $(sim_results)  ;\
 	printf "                          Test               | build | simulation \n" ; \
 	printf "$$(cat $(test_results)) \n"
+
 run_modelsim: $(test_info)
 	$(MAKE) -C $(root_dir)/sim build_modelsim SIM_CFG_DEF=$(SIM_CFG_DEF) SIM_TRACE_DEF=$(SIM_TRACE_DEF) SIM_BUILD_OPTS="$(SIM_BUILD_OPTS)"
 	@echo "Preparing simulation in $(bld_dir)..."
@@ -311,7 +391,7 @@ run_modelsim: $(test_info)
 	@cd $(bld_dir) && \
 	if [ "$(GUI)" = "1" ]; then \
 		echo "Starting ModelSim in GUI mode..."; \
-		$(MODELSIM) -gui -do "run -all; quit -sim" +nowarn3691 \
+		$(MODELSIM) -gui -voptargs="+acc" -do "log -r /*; run -all; " +nowarn3691 \
 			+test_info=$(test_info) \
 			+test_results=$(test_results) \
 			+imem_pattern=$(imem_pattern) \
@@ -382,6 +462,44 @@ run_verilator_wf: $(test_info)
 	printf "Simulation performed on $$(verilator -version) \n" ;\
 	printf "                          Test               | build | simulation \n" ; \
 	printf "$$(cat $(test_results)) \n"
+
+
+#==============================================================================
+# Compile-Only Targets
+#==============================================================================
+
+run_vcs_compile: | $(bld_dir)
+	@echo "INFO: Compiling the project for VCS..."
+	$(MAKE) -C $(root_dir)/sim build_vcs SIM_CFG_DEF=$(SIM_CFG_DEF) SIM_TRACE_DEF=$(SIM_TRACE_DEF) SIM_BUILD_OPTS="$(SIM_BUILD_OPTS)"
+	@echo "INFO: VCS compilation check finished successfully."
+	@echo "INFO: Compiled artifacts can be found in $(bld_dir)"
+
+run_modelsim_compile: | $(bld_dir)
+	@echo "INFO: Compiling the project for ModelSim..."
+	$(MAKE) -C $(root_dir)/sim build_modelsim SIM_CFG_DEF=$(SIM_CFG_DEF) SIM_TRACE_DEF=$(SIM_TRACE_DEF) SIM_BUILD_OPTS="$(SIM_BUILD_OPTS)"
+	@echo "INFO: ModelSim compilation check finished successfully."
+	@echo "INFO: Compiled library can be found in $(bld_dir)"
+
+run_ncsim_compile: | $(bld_dir)
+	@echo "INFO: Compiling the project for NCSim (irun)..."
+	$(MAKE) -C $(root_dir)/sim build_ncsim SIM_CFG_DEF=$(SIM_CFG_DEF) SIM_TRACE_DEF=$(SIM_TRACE_DEF) SIM_BUILD_OPTS="$(SIM_BUILD_OPTS)"
+	@echo "INFO: NCSim compilation check finished successfully."
+	@echo "INFO: Compiled artifacts can be found in $(bld_dir)"
+
+run_verilator_compile: | $(bld_dir)
+	@echo "INFO: Compiling the project with Verilator..."
+	$(MAKE) -C $(root_dir)/sim build_verilator SIM_CFG_DEF=$(SIM_CFG_DEF) SIM_TRACE_DEF=$(SIM_TRACE_DEF) SIM_BUILD_OPTS="$(SIM_BUILD_OPTS)"
+	@echo "INFO: Verilator compilation check finished successfully."
+	@echo "INFO: Compiled executable can be found in $(bld_dir)/verilator/"
+
+run_verilator_wf_compile: | $(bld_dir)
+	@echo "INFO: Compiling the project with Verilator (waveform enabled)..."
+	$(MAKE) -C $(root_dir)/sim build_verilator_wf SIM_CFG_DEF=$(SIM_CFG_DEF) SIM_TRACE_DEF=$(SIM_TRACE_DEF) SIM_BUILD_OPTS="$(SIM_BUILD_OPTS)"
+	@echo "INFO: Verilator (waveform) compilation check finished successfully."
+	@echo "INFO: Compiled executable can be found in $(bld_dir)/verilator/"
+
+#==============================================================================
+
 clean:
 	$(RM) -R $(root_dir)/build/*
 #	$(MAKE) -C $(tst_dir)/benchmarks/dhrystone21 clean
