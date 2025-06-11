@@ -311,7 +311,7 @@ run_modelsim: $(test_info)
 	@cd $(bld_dir) && \
 	if [ "$(GUI)" = "1" ]; then \
 		echo "Starting ModelSim in GUI mode..."; \
-		$(MODELSIM) -gui -do "run -all" +nowarn3691 \
+		$(MODELSIM) -gui -voptargs="+acc" -do "add wave -r /*; run -all;" +nowarn3691 \
 			+test_info=$(test_info) \
 			+test_results=$(test_results) \
 			+imem_pattern=$(imem_pattern) \
