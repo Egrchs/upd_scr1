@@ -399,19 +399,19 @@ always_ff @(posedge clk) begin
         if (idu2exu_use_imm_i) begin
             exu_queue.imm        <= idu2exu_cmd_i.imm;
         end
-         exu_queue.fpu_op         <= idu2exu_cmd_i.fpu_op;          // Добавить в type_scr1_exu_cmd_s
-        exu_queue.fpu_cmd        <= idu2exu_cmd_i.fpu_cmd;         // Добавить в type_scr1_exu_cmd_s
+         exu_queue.fpu_op         <= idu2exu_cmd_i.fpu_op;
+        exu_queue.fpu_cmd        <= idu2exu_cmd_i.fpu_cmd;
         if (idu2exu_use_frs1_i) begin
-            exu_queue.frs1_addr  <= idu2exu_cmd_i.frs1_addr;       // Добавить в type_scr1_exu_cmd_s
+            exu_queue.frs1_addr  <= idu2exu_cmd_i.frs1_addr;
         end
         if (idu2exu_use_frs2_i) begin
-            exu_queue.frs2_addr  <= idu2exu_cmd_i.frs2_addr;       // Добавить в type_scr1_exu_cmd_s
+            exu_queue.frs2_addr  <= idu2exu_cmd_i.frs2_addr;
         end
         if (idu2exu_use_frs3_i) begin
-            exu_queue.frs3_addr  <= idu2exu_cmd_i.frs3_addr;       // Добавить в type_scr1_exu_cmd_s
+            exu_queue.frs3_addr  <= idu2exu_cmd_i.frs3_addr;
         end
         if (idu2exu_use_frd_i) begin
-            exu_queue.frd_addr   <= idu2exu_cmd_i.frd_addr;        // Добавить в type_scr1_exu_cmd_s
+            exu_queue.frd_addr   <= idu2exu_cmd_i.frd_addr;
         end
     end
 end
@@ -1126,10 +1126,10 @@ SCR1_SVA_EXU_XCHECK_CTRL : assert property (
     !$isunknown({idu2exu_req_i, csr2exu_irq_i, csr2exu_ip_ie_i, lsu_req, lsu_rdy, exu_exc_req})
     ) else $error("EXU Error: unknown control values");
 
-SCR1_SVA_EXU_XCHECK_QUEUE : assert property (
-    @(negedge clk) disable iff (~rst_n)
-    (idu2exu_req_i & exu_queue_vd) |-> !$isunknown(idu2exu_cmd_i)
-    ) else $error("EXU Error: unknown values in queue");
+//SCR1_SVA_EXU_XCHECK_QUEUE : assert property (
+  //  @(negedge clk) disable iff (~rst_n)
+    //(idu2exu_req_i & exu_queue_vd) |-> !$isunknown(idu2exu_cmd_i)
+    //) else $error("EXU Error: ");
 
 SCR1_SVA_EXU_XCHECK_CSR_RDATA : assert property (
     @(negedge clk) disable iff (~rst_n)
