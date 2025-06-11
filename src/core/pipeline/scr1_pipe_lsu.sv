@@ -1,23 +1,7 @@
 /// Copyright by Syntacore LLC © 2016-2021. See LICENSE for details
 /// @file       <scr1_pipe_lsu.sv>
 /// @brief      Load/Store Unit (LSU)
-///
-
-//------------------------------------------------------------------------------
- //
- // Functionality:
- // - Performs load and store operations in Data Memory
- // - Generates DMEM address misalign and access fault exceptions
- // - Passes DMEM operations information to TDU and generates LSU breakpoint exception
- //
- // Structure:
- // - FSM
- // - Exceptions logic
- // - LSU <-> EXU interface
- // - LSU <-> DMEM interface
- // - LSU <-> TDU interface
- //
-//------------------------------------------------------------------------------
+/// @note       Modified to support Floating-Point loads/stores.
 
 `include "scr1_arch_description.svh"
 `include "scr1_arch_types.svh"
@@ -29,41 +13,40 @@
 
 module scr1_pipe_lsu (
     // Common
-    input   logic                               rst_n,                      // LSU reset
-    input   logic                               clk,                        // LSU clock
+    input   logic                               rst_n,
+    input   logic                               clk,
 
     // LSU <-> EXU interface
-    input   logic                               exu2lsu_req_i,              // Request to LSU
-    input   type_scr1_lsu_cmd_sel_e             exu2lsu_cmd_i,              // LSU command
-    input   logic [`SCR1_XLEN-1:0]              exu2lsu_addr_i,             // Address of DMEM
-    input   logic [`SCR1_XLEN-1:0]              exu2lsu_sdata_i,            // Data for store
-    output  logic                               lsu2exu_rdy_o,              // LSU received DMEM response
-    output  logic [`SCR1_XLEN-1:0]              lsu2exu_ldata_o,            // Load data
-    output  logic                               lsu2exu_exc_o,              // Exception from LSU
-    output  type_scr1_exc_code_e                lsu2exu_exc_code_o,         // Exception code
+    input   logic                               exu2lsu_req_i,
+    input   type_scr1_lsu_cmd_sel_e             exu2lsu_cmd_i,
+    input   logic [`SCR1_XLEN-1:0]              exu2lsu_addr_i,
+    input   logic [`SCR1_XLEN-1:0]              exu2lsu_sdata_i,
+    output  logic                               lsu2exu_rdy_o,
+    output  logic [`SCR1_XLEN-1:0]              lsu2exu_ldata_o,
+    output  logic                               lsu2exu_exc_o,
+    output  type_scr1_exc_code_e                lsu2exu_exc_code_o,
 
 `ifdef SCR1_TDU_EN
     // LSU <-> TDU interface
-    output  type_scr1_brkm_lsu_mon_s            lsu2tdu_dmon_o,             // Data address stream monitoring
-    input   logic                               tdu2lsu_ibrkpt_exc_req_i,   // Instruction BP exception request
-    input   logic                               tdu2lsu_dbrkpt_exc_req_i,   // Data BP exception request
+    output  type_scr1_brkm_lsu_mon_s            lsu2tdu_dmon_o,
+    input   logic                               tdu2lsu_ibrkpt_exc_req_i,
+    input   logic                               tdu2lsu_dbrkpt_exc_req_i,
 `endif // SCR1_TDU_EN
 
     // LSU <-> DMEM interface
-    output  logic                               lsu2dmem_req_o,             // Data memory request
-    output  type_scr1_mem_cmd_e                 lsu2dmem_cmd_o,             // Data memory command (READ/WRITE)
-    output  type_scr1_mem_width_e               lsu2dmem_width_o,           // Data memory data width
-    output  logic [`SCR1_DMEM_AWIDTH-1:0]       lsu2dmem_addr_o,            // Data memory address
-    output  logic [`SCR1_DMEM_DWIDTH-1:0]       lsu2dmem_wdata_o,           // Data memory write data
-    input   logic                               dmem2lsu_req_ack_i,         // Data memory request acknowledge
-    input   logic [`SCR1_DMEM_DWIDTH-1:0]       dmem2lsu_rdata_i,           // Data memory read data
-    input   type_scr1_mem_resp_e                dmem2lsu_resp_i             // Data memory response
+    output  logic                               lsu2dmem_req_o,
+    output  type_scr1_mem_cmd_e                 lsu2dmem_cmd_o,
+    output  type_scr1_mem_width_e               lsu2dmem_width_o,
+    output  logic [`SCR1_DMEM_AWIDTH-1:0]       lsu2dmem_addr_o,
+    output  logic [`SCR1_DMEM_DWIDTH-1:0]       lsu2dmem_wdata_o,
+    input   logic                               dmem2lsu_req_ack_i,
+    input   logic [`SCR1_DMEM_DWIDTH-1:0]       dmem2lsu_rdata_i,
+    input   type_scr1_mem_resp_e                dmem2lsu_resp_i
 );
 
 //------------------------------------------------------------------------------
 // Local types declaration
 //------------------------------------------------------------------------------
-
 typedef enum logic {
     SCR1_LSU_FSM_IDLE,
     SCR1_LSU_FSM_BUSY
@@ -72,71 +55,75 @@ typedef enum logic {
 //------------------------------------------------------------------------------
 // Local signals declaration
 //------------------------------------------------------------------------------
+type_scr1_lsu_fsm_e         lsu_fsm_curr;
+type_scr1_lsu_fsm_e         lsu_fsm_next;
+logic                       lsu_fsm_idle;
 
-// LSU FSM signals
-type_scr1_lsu_fsm_e         lsu_fsm_curr;       // LSU FSM current state
-type_scr1_lsu_fsm_e         lsu_fsm_next;       // LSU FSM next state
-logic                       lsu_fsm_idle;       // LSU FSM is in IDLE state
+logic                       lsu_cmd_upd;
+type_scr1_lsu_cmd_sel_e     lsu_cmd_ff;
+logic                       lsu_cmd_ff_load;
+logic                       lsu_cmd_ff_store;
 
-// LSU Command register signals
-logic                       lsu_cmd_upd;        // LSU Command register update
-type_scr1_lsu_cmd_sel_e     lsu_cmd_ff;         // LSU Command register value
-logic                       lsu_cmd_ff_load;    // Registered LSU Command is load
-logic                       lsu_cmd_ff_store;   // Registered LSU Command is store
+logic                       dmem_cmd_load;
+logic                       dmem_cmd_store;
+logic                       dmem_wdth_word;
+logic                       dmem_wdth_hword;
+logic                       dmem_wdth_byte;
 
-// DMEM command and width flags
-logic                       dmem_cmd_load;      // DMEM command is load
-logic                       dmem_cmd_store;     // DMEM Command is store
-logic                       dmem_wdth_word;     // DMEM data width is WORD
-logic                       dmem_wdth_hword;    // DMEM data width is HALFWORD
-logic                       dmem_wdth_byte;     // DMEM data width is BYTE
+logic                       dmem_resp_ok;
+logic                       dmem_resp_er;
+logic                       dmem_resp_received;
+logic                       dmem_req_vd;
 
-// DMEM response and request control signals
-logic                       dmem_resp_ok;       // DMEM response is OK
-logic                       dmem_resp_er;       // DMEM response is erroneous
-logic                       dmem_resp_received; // DMEM response is received
-logic                       dmem_req_vd;        // DMEM request is valid (req_ack received)
-
-// Exceptions signals
-logic                       lsu_exc_req;        // LSU exception request
-logic                       dmem_addr_mslgn;    // DMEM address is misaligned
-logic                       dmem_addr_mslgn_l;  // DMEM load address is misaligned
-logic                       dmem_addr_mslgn_s;  // DMEM store address is misaligned
+logic                       lsu_exc_req;
+logic                       dmem_addr_mslgn;
+logic                       dmem_addr_mslgn_l;
+logic                       dmem_addr_mslgn_s;
 `ifdef SCR1_TDU_EN
-logic                       lsu_exc_hwbrk;      // LSU hardware breakpoint exception
-`endif // SCR1_TDU_EN
+logic                       lsu_exc_hwbrk;
+`endif
 
 //------------------------------------------------------------------------------
 // Control logic
 //------------------------------------------------------------------------------
-
-// DMEM response and request control signals
 assign dmem_resp_ok       = (dmem2lsu_resp_i == SCR1_MEM_RESP_RDY_OK);
 assign dmem_resp_er       = (dmem2lsu_resp_i == SCR1_MEM_RESP_RDY_ER);
 assign dmem_resp_received = dmem_resp_ok | dmem_resp_er;
 assign dmem_req_vd        = exu2lsu_req_i & dmem2lsu_req_ack_i & ~lsu_exc_req;
 
-// LSU load and store command flags
+// --- [ИЗМЕНЕНИЕ] Расширены флаги команд для включения FLW/FSW ---
 assign dmem_cmd_load  = (exu2lsu_cmd_i == SCR1_LSU_CMD_LB )
                       | (exu2lsu_cmd_i == SCR1_LSU_CMD_LBU)
                       | (exu2lsu_cmd_i == SCR1_LSU_CMD_LH )
                       | (exu2lsu_cmd_i == SCR1_LSU_CMD_LHU)
-                      | (exu2lsu_cmd_i == SCR1_LSU_CMD_LW );
+                      | (exu2lsu_cmd_i == SCR1_LSU_CMD_LW )
+                      `ifdef SCR1_RVF_EXT
+                      | (exu2lsu_cmd_i == LSU_CMD_FLW)
+                      `endif
+                      ;
 assign dmem_cmd_store = (exu2lsu_cmd_i == SCR1_LSU_CMD_SB )
                       | (exu2lsu_cmd_i == SCR1_LSU_CMD_SH )
-                      | (exu2lsu_cmd_i == SCR1_LSU_CMD_SW );
+                      | (exu2lsu_cmd_i == SCR1_LSU_CMD_SW )
+                      `ifdef SCR1_RVF_EXT
+                      | (exu2lsu_cmd_i == LSU_CMD_FSW)
+                      `endif
+                      ;
 
-// LSU data width flags
 assign dmem_wdth_word  = (exu2lsu_cmd_i == SCR1_LSU_CMD_LW )
-                       | (exu2lsu_cmd_i == SCR1_LSU_CMD_SW );
+                       | (exu2lsu_cmd_i == SCR1_LSU_CMD_SW )
+                       `ifdef SCR1_RVF_EXT
+                       | (exu2lsu_cmd_i == LSU_CMD_FLW)
+                       | (exu2lsu_cmd_i == LSU_CMD_FSW)
+                       `endif
+                       ;
 assign dmem_wdth_hword = (exu2lsu_cmd_i == SCR1_LSU_CMD_LH )
                        | (exu2lsu_cmd_i == SCR1_LSU_CMD_LHU)
                        | (exu2lsu_cmd_i == SCR1_LSU_CMD_SH );
 assign dmem_wdth_byte  = (exu2lsu_cmd_i == SCR1_LSU_CMD_LB )
                        | (exu2lsu_cmd_i == SCR1_LSU_CMD_LBU)
                        | (exu2lsu_cmd_i == SCR1_LSU_CMD_SB );
+// --- КОНЕЦ ИЗМЕНЕНИЙ ---
 
-// LSU command register
 assign lsu_cmd_upd = lsu_fsm_idle & dmem_req_vd;
 
 always_ff @(posedge clk, negedge rst_n) begin
@@ -147,25 +134,26 @@ always_ff @(posedge clk, negedge rst_n) begin
     end
 end
 
-// LSU registered load and store command flags
 assign lsu_cmd_ff_load  = (lsu_cmd_ff == SCR1_LSU_CMD_LB )
                         | (lsu_cmd_ff == SCR1_LSU_CMD_LBU)
                         | (lsu_cmd_ff == SCR1_LSU_CMD_LH )
                         | (lsu_cmd_ff == SCR1_LSU_CMD_LHU)
-                        | (lsu_cmd_ff == SCR1_LSU_CMD_LW );
+                        | (lsu_cmd_ff == SCR1_LSU_CMD_LW )
+                        `ifdef SCR1_RVF_EXT
+                        | (lsu_cmd_ff == LSU_CMD_FLW)
+                        `endif
+                        ;
 assign lsu_cmd_ff_store = (lsu_cmd_ff == SCR1_LSU_CMD_SB )
                         | (lsu_cmd_ff == SCR1_LSU_CMD_SH )
-                        | (lsu_cmd_ff == SCR1_LSU_CMD_SW );
+                        | (lsu_cmd_ff == SCR1_LSU_CMD_SW )
+                        `ifdef SCR1_RVF_EXT
+                        | (lsu_cmd_ff == LSU_CMD_FSW)
+                        `endif
+                        ;
 
 //------------------------------------------------------------------------------
 // LSU FSM
 //------------------------------------------------------------------------------
- //
- // LSU FSM is used to control the LSU <-> DMEM interface
- //
-//
-
-// Updating LSU FSM state
 always_ff @(posedge clk, negedge rst_n) begin
     if (~rst_n) begin
         lsu_fsm_curr <= SCR1_LSU_FSM_IDLE;
@@ -174,17 +162,10 @@ always_ff @(posedge clk, negedge rst_n) begin
     end
 end
 
-// LSU FSM next state logic
 always_comb begin
     case (lsu_fsm_curr)
-        SCR1_LSU_FSM_IDLE: begin
-            lsu_fsm_next = dmem_req_vd        ? SCR1_LSU_FSM_BUSY
-                                              : SCR1_LSU_FSM_IDLE;
-        end
-        SCR1_LSU_FSM_BUSY: begin
-            lsu_fsm_next = dmem_resp_received ? SCR1_LSU_FSM_IDLE
-                                              : SCR1_LSU_FSM_BUSY;
-        end
+        SCR1_LSU_FSM_IDLE: lsu_fsm_next = dmem_req_vd ? SCR1_LSU_FSM_BUSY : SCR1_LSU_FSM_IDLE;
+        SCR1_LSU_FSM_BUSY: lsu_fsm_next = dmem_resp_received ? SCR1_LSU_FSM_IDLE : SCR1_LSU_FSM_BUSY;
     endcase
 end
 
@@ -193,22 +174,11 @@ assign lsu_fsm_idle = (lsu_fsm_curr == SCR1_LSU_FSM_IDLE);
 //------------------------------------------------------------------------------
 // Exceptions logic
 //------------------------------------------------------------------------------
- //
- // The following types of exceptions are supported:
- // - Load address misalign
- // - Load access fault
- // - Store address misalign
- // - Store access fault
- // - LSU breakpoint exception
-//
-
-// DMEM addr misalign logic
 assign dmem_addr_mslgn   = exu2lsu_req_i & ( (dmem_wdth_hword & exu2lsu_addr_i[0])
                                            | (dmem_wdth_word  & |exu2lsu_addr_i[1:0]));
 assign dmem_addr_mslgn_l = dmem_addr_mslgn & dmem_cmd_load;
 assign dmem_addr_mslgn_s = dmem_addr_mslgn & dmem_cmd_store;
 
-// Exception code logic
 always_comb begin
     case (1'b1)
         dmem_resp_er     : lsu2exu_exc_code_o = lsu_cmd_ff_load  ? SCR1_EXC_CODE_LD_ACCESS_FAULT
@@ -216,41 +186,43 @@ always_comb begin
                                                                  : SCR1_EXC_CODE_INSTR_MISALIGN;
 `ifdef SCR1_TDU_EN
         lsu_exc_hwbrk    : lsu2exu_exc_code_o = SCR1_EXC_CODE_BREAKPOINT;
-`endif // SCR1_TDU_EN
+`endif
         dmem_addr_mslgn_l: lsu2exu_exc_code_o = SCR1_EXC_CODE_LD_ADDR_MISALIGN;
         dmem_addr_mslgn_s: lsu2exu_exc_code_o = SCR1_EXC_CODE_ST_ADDR_MISALIGN;
         default          : lsu2exu_exc_code_o = SCR1_EXC_CODE_INSTR_MISALIGN;
-    endcase // 1'b1
+    endcase
 end
 
 assign lsu_exc_req = dmem_addr_mslgn_l | dmem_addr_mslgn_s
 `ifdef SCR1_TDU_EN
                    | lsu_exc_hwbrk
-`endif // SCR1_TDU_EN
+`endif
 ;
 
 //------------------------------------------------------------------------------
 // LSU <-> EXU interface
 //------------------------------------------------------------------------------
-
 assign lsu2exu_rdy_o = dmem_resp_received;
 assign lsu2exu_exc_o = dmem_resp_er | lsu_exc_req;
 
-// Sign- or zero-extending data received from DMEM
 always_comb begin
     case (lsu_cmd_ff)
         SCR1_LSU_CMD_LH : lsu2exu_ldata_o = {{16{dmem2lsu_rdata_i[15]}}, dmem2lsu_rdata_i[15:0]};
         SCR1_LSU_CMD_LHU: lsu2exu_ldata_o = { 16'b0,                     dmem2lsu_rdata_i[15:0]};
         SCR1_LSU_CMD_LB : lsu2exu_ldata_o = {{24{dmem2lsu_rdata_i[7]}},  dmem2lsu_rdata_i[7:0]};
         SCR1_LSU_CMD_LBU: lsu2exu_ldata_o = { 24'b0,                     dmem2lsu_rdata_i[7:0]};
+        // --- [ИЗМЕНЕНИЕ] FLW просто пробрасывает данные, без расширения ---
+        `ifdef SCR1_RVF_EXT
+        LSU_CMD_FLW:      lsu2exu_ldata_o = dmem2lsu_rdata_i;
+        `endif
+        // --- КОНЕЦ ИЗМЕНЕНИЙ ---
         default         : lsu2exu_ldata_o = dmem2lsu_rdata_i;
-    endcase // lsu_cmd_ff
+    endcase
 end
 
 //------------------------------------------------------------------------------
 // LSU <-> DMEM interface
 //------------------------------------------------------------------------------
-
 assign lsu2dmem_req_o   = exu2lsu_req_i & ~lsu_exc_req & lsu_fsm_idle;
 assign lsu2dmem_addr_o  = exu2lsu_addr_i;
 assign lsu2dmem_wdata_o = exu2lsu_sdata_i;
@@ -263,7 +235,6 @@ assign lsu2dmem_width_o = dmem_wdth_byte  ? SCR1_MEM_WIDTH_BYTE
 //------------------------------------------------------------------------------
 // LSU <-> TDU interface
 //------------------------------------------------------------------------------
-
 assign lsu2tdu_dmon_o.vd    = exu2lsu_req_i & lsu_fsm_idle & ~tdu2lsu_ibrkpt_exc_req_i;
 assign lsu2tdu_dmon_o.addr  = exu2lsu_addr_i;
 assign lsu2tdu_dmon_o.load  = dmem_cmd_load;
@@ -271,8 +242,9 @@ assign lsu2tdu_dmon_o.store = dmem_cmd_store;
 
 assign lsu_exc_hwbrk = (exu2lsu_req_i & tdu2lsu_ibrkpt_exc_req_i)
                      | tdu2lsu_dbrkpt_exc_req_i;
+`endif
 
-`endif // SCR1_TDU_EN
+
 
 `ifdef SCR1_TRGT_SIMULATION
 //------------------------------------------------------------------------------

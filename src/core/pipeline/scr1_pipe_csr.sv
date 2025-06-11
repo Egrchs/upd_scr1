@@ -54,46 +54,47 @@ module scr1_pipe_csr (
  `endif // SCR1_CLKCTRL_EN
 `endif // SCR1_CSR_REDUCED_CNT
 
-    // SOC signals
-    // IRQ
-    input   logic                                       soc2csr_irq_ext_i,          // External interrupt request
-    input   logic                                       soc2csr_irq_soft_i,         // Software interrupt request
-    input   logic                                       soc2csr_irq_mtimer_i,       // External timer interrupt request
-
-    // Memory-mapped external timer
-    input   logic [63:0]                                soc2csr_mtimer_val_i,       // External timer value
-
-    // MHARTID fuse
-    input   logic [`SCR1_XLEN-1:0]                      soc2csr_fuse_mhartid_i,     // MHARTID fuse
+// SOC signals
+    input   logic                                       soc2csr_irq_ext_i,
+    input   logic                                       soc2csr_irq_soft_i,
+    input   logic                                       soc2csr_irq_mtimer_i,
+    input   logic [63:0]                                soc2csr_mtimer_val_i,
+    input   logic [`SCR1_XLEN-1:0]                      soc2csr_fuse_mhartid_i,
 
     // CSR <-> EXU read/write interface
-    input   logic                                       exu2csr_r_req_i,            // CSR read request
-    input   logic [SCR1_CSR_ADDR_WIDTH-1:0]             exu2csr_rw_addr_i,          // CSR read/write address
-    output  logic [`SCR1_XLEN-1:0]                      csr2exu_r_data_o,           // CSR read data
-    input   logic                                       exu2csr_w_req_i,            // CSR write request
-    input   type_scr1_csr_cmd_sel_e                     exu2csr_w_cmd_i,            // CSR write command
-    input   logic [`SCR1_XLEN-1:0]                      exu2csr_w_data_i,           // CSR write data
-    output  logic                                       csr2exu_rw_exc_o,           // CSR read/write access exception
+    input   logic                                       exu2csr_r_req_i,
+    input   logic [SCR1_CSR_ADDR_WIDTH-1:0]             exu2csr_rw_addr_i,
+    output  logic [`SCR1_XLEN-1:0]                      csr2exu_r_data_o,
+    input   logic                                       exu2csr_w_req_i,
+    input   type_scr1_csr_cmd_sel_e                     exu2csr_w_cmd_i,
+    input   logic [`SCR1_XLEN-1:0]                      exu2csr_w_data_i,
+    output  logic                                       csr2exu_rw_exc_o,
 
     // CSR <-> EXU event interface
-    input   logic                                       exu2csr_take_irq_i,         // Take IRQ trap
-    input   logic                                       exu2csr_take_exc_i,         // Take exception trap
-    input   logic                                       exu2csr_mret_update_i,      // MRET update CSR
-    input   logic                                       exu2csr_mret_instr_i,       // MRET instruction
-    input   type_scr1_exc_code_e                        exu2csr_exc_code_i,         // Exception code (see scr1_arch_types.svh)
-    input   logic [`SCR1_XLEN-1:0]                      exu2csr_trap_val_i,         // Trap value
-    output  logic                                       csr2exu_irq_o,              // IRQ request
-    output  logic                                       csr2exu_ip_ie_o,            // Some IRQ pending and locally enabled
-    output  logic                                       csr2exu_mstatus_mie_up_o,   // MSTATUS or MIE update in the current cycle
+    input   logic                                       exu2csr_take_irq_i,
+    input   logic                                       exu2csr_take_exc_i,
+    input   logic                                       exu2csr_mret_update_i,
+    input   logic                                       exu2csr_mret_instr_i,
+    input   type_scr1_exc_code_e                        exu2csr_exc_code_i,
+    input   logic [`SCR1_XLEN-1:0]                      exu2csr_trap_val_i,
+    output  logic                                       csr2exu_irq_o,
+    output  logic                                       csr2exu_ip_ie_o,
+    output  logic                                       csr2exu_mstatus_mie_up_o,
 
-`ifdef SCR1_IPIC_EN
+    // --- [ИЗМЕНЕНИЕ] НОВЫЙ ПОРТ ДЛЯ СВЯЗИ С FPU ---
+    `ifdef SCR1_RVF_EXT
+    input   logic [4:0]                                 exu2csr_fpu_flags_i,
+    `endif
+    // --- КОНЕЦ ИЗМЕНЕНИЙ ---
+
+    `ifdef SCR1_IPIC_EN
     // CSR <-> IPIC interface
-    output  logic                                       csr2ipic_r_req_o,           // IPIC read request
-    output  logic                                       csr2ipic_w_req_o,           // IPIC write request
-    output  logic [2:0]                                 csr2ipic_addr_o,            // IPIC address
-    output  logic [`SCR1_XLEN-1:0]                      csr2ipic_wdata_o,           // IPIC write data
-    input   logic [`SCR1_XLEN-1:0]                      ipic2csr_rdata_i,           // IPIC read data
-`endif // SCR1_IPIC_EN
+    output  logic                                       csr2ipic_r_req_o,
+    output  logic                                       csr2ipic_w_req_o,
+    output  logic [2:0]                                 csr2ipic_addr_o,
+    output  logic [`SCR1_XLEN-1:0]                      csr2ipic_wdata_o,
+    input   logic [`SCR1_XLEN-1:0]                      ipic2csr_rdata_i,
+    `endif // SCR1_IPIC_EN
 
 `ifdef SCR1_DBG_EN
     // CSR <-> HDU interface
@@ -198,6 +199,10 @@ logic                                               csr_mip_mtip;           // M
 logic                                               csr_mip_meip;           // MIP: Machine external interrupt pending
 logic                                               csr_mip_msip;           // MIP: Machine software interrupt pending
 
+`ifdef SCR1_RVF_EXT
+    logic                                               csr_fcsr_upd;
+    logic [`SCR1_XLEN-1:0]                              csr_fcsr_ff;
+`endif
 // Machine Counters/Timers registers
 //------------------------------------------------------------------------------
 
@@ -340,7 +345,11 @@ always_comb begin
         SCR1_CSR_ADDR_MARCHID   : csr_r_data    = SCR1_CSR_MARCHID;
         SCR1_CSR_ADDR_MIMPID    : csr_r_data    = SCR1_CSR_MIMPID;
         SCR1_CSR_ADDR_MHARTID   : csr_r_data    = soc2csr_fuse_mhartid_i;
-
+        `ifdef SCR1_RVF_EXT
+        SCR1_CSR_ADDR_FFLAGS: csr_r_data = {'0, csr_fcsr_ff[4:0]};
+        SCR1_CSR_ADDR_FRM:    csr_r_data = {'0, csr_fcsr_ff[7:5]};
+        SCR1_CSR_ADDR_FCSR:   csr_r_data = csr_fcsr_ff;
+        `endif
         // Machine Trap Setup (read-write)
         SCR1_CSR_ADDR_MSTATUS   : csr_r_data    = csr_mstatus;
         SCR1_CSR_ADDR_MISA      : csr_r_data    = SCR1_CSR_MISA;
@@ -591,7 +600,11 @@ always_comb begin
             SCR1_CSR_ADDR_TDU_TINFO: begin
             end
 `endif // SCR1_TDU_EN
-
+            `ifdef SCR1_RVF_EXT
+            SCR1_CSR_ADDR_FFLAGS,
+            SCR1_CSR_ADDR_FRM,
+            SCR1_CSR_ADDR_FCSR: csr_fcsr_upd = 1'b1;
+            `endif
             default : begin
                 csr_w_exc   = 1'b1;
             end
@@ -651,7 +664,26 @@ always_comb begin
     csr_mstatus[SCR1_CSR_MSTATUS_MPIE_OFFSET]                              = csr_mstatus_mpie_ff;
     csr_mstatus[SCR1_CSR_MSTATUS_MPP_OFFSET+1:SCR1_CSR_MSTATUS_MPP_OFFSET] = SCR1_CSR_MSTATUS_MPP;
 end
-
+`ifdef SCR1_RVF_EXT
+always_ff @(posedge clk, negedge rst_n) begin
+    if (~rst_n) begin
+        csr_fcsr_ff <= '0;
+    end else begin
+        // Флаги от FPU имеют приоритет и накапливаются
+        if (|exu2csr_fpu_flags_i) begin
+            csr_fcsr_ff[4:0] <= csr_fcsr_ff[4:0] | exu2csr_fpu_flags_i;
+        end else if (csr_fcsr_upd) begin
+            // Запись через CSR-инструкцию
+            case (exu2csr_rw_addr_i)
+                SCR1_CSR_ADDR_FFLAGS: csr_fcsr_ff[4:0] <= csr_w_data[4:0];
+                SCR1_CSR_ADDR_FRM:    csr_fcsr_ff[7:5] <= csr_w_data[7:5];
+                SCR1_CSR_ADDR_FCSR:   csr_fcsr_ff[7:0] <= csr_w_data[7:0];
+                default: ;
+            endcase
+        end
+    end
+end
+`endif
 // MIE register
 //------------------------------------------------------------------------------
 // Contains interrupt enable bits (external, software, timer IRQs)
