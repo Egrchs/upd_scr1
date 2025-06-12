@@ -112,19 +112,33 @@ BUS_lowercase  = $(shell echo $(BUS)  | tr A-Z a-z)
 ifeq ($(ARCH_lowercase),)
     ARCH_tmp = imc
 else
+    ARCH_tmp :=
+
+    # 1. Базовая архитектура (I или E)
     ifneq (,$(findstring e,$(ARCH_lowercase)))
-        ARCH_tmp   += e
+        ARCH_tmp   := e
         EXT_CFLAGS += -D__RVE_EXT
     else
-        ARCH_tmp   += i
+        ARCH_tmp   := i
     endif
+
+    # 2. Расширение M (Integer Multiplication and Division)
     ifneq (,$(findstring m,$(ARCH_lowercase)))
         ARCH_tmp   := $(ARCH_tmp)m
     endif
+
+    # 3. Расширение F (Single-Precision Floating-Point)
+    ifneq (,$(findstring f,$(ARCH_lowercase)))
+        ARCH_tmp   := $(ARCH_tmp)f
+    endif
+
+    # 4. Расширение C (Compressed Instructions)
     ifneq (,$(findstring c,$(ARCH_lowercase)))
         ARCH_tmp   := $(ARCH_tmp)c
         EXT_CFLAGS += -D__RVC_EXT
     endif
+
+    # 5. Расширение B (Bit Manipulation)
     ifneq (,$(findstring b,$(ARCH_lowercase)))
         ARCH_tmp   := $(ARCH_tmp)b
     endif
@@ -224,7 +238,12 @@ ifneq (,$(findstring e,$(ARCH_lowercase)))
 # Tests can be compiled for RVE only if gcc version 8.0.0 or higher
     GCCVERSIONGT7 := $(shell expr `$(RISCV_GCC) -dumpfullversion | cut -f1 -d'.'` \> 7)
     ifeq "$(GCCVERSIONGT7)" "1"
-        ABI := ilp32e
+        # The 'F' extension dictates the ABI, so we check for it first.
+        ifneq (,$(findstring f,$(ARCH_lowercase)))
+            override ABI := ilp32f
+        else ifneq (,$(findstring e,$(ARCH_lowercase)))
+            override ABI := ilp32e
+        endif
     endif
 endif
 
@@ -285,25 +304,25 @@ $(test_info): clean_test_list clean_hex tests
 	cd $(bld_dir)
 
 isr_sample: | $(bld_dir)
-	$(MAKE) -C $(tst_dir)/isr_sample ARCH=$(ARCH) IPIC=$(IPIC) VECT_IRQ=$(VECT_IRQ)
+	$(MAKE) -C $(tst_dir)/isr_sample ARCH=$(ARCH) IPIC=$(IPIC) VECT_IRQ=$(VECT_IRQ) ABI=$(ABI)
 
 dhrystone21: | $(bld_dir)
-	$(MAKE) -C $(tst_dir)/benchmarks/dhrystone21 EXT_CFLAGS="$(EXT_CFLAGS)" ARCH=$(ARCH)
+	$(MAKE) -C $(tst_dir)/benchmarks/dhrystone21 EXT_CFLAGS="$(EXT_CFLAGS)" ARCH=$(ARCH) ABI=$(ABI)
 
 coremark: | $(bld_dir)
-	-$(MAKE) -C $(tst_dir)/benchmarks/coremark EXT_CFLAGS="$(EXT_CFLAGS)" ARCH=$(ARCH)
+	-$(MAKE) -C $(tst_dir)/benchmarks/coremark EXT_CFLAGS="$(EXT_CFLAGS)" ARCH=$(ARCH) ABI=$(ABI)
 
 riscv_isa: | $(bld_dir)
-	$(MAKE) -C $(tst_dir)/riscv_isa ARCH=$(ARCH)
+	$(MAKE) -C $(tst_dir)/riscv_isa ARCH=$(ARCH) ABI=$(ABI)
 
 riscv_compliance: | $(bld_dir)
-	$(MAKE) -C $(tst_dir)/riscv_compliance ARCH=$(ARCH)
+	$(MAKE) -C $(tst_dir)/riscv_compliance ARCH=$(ARCH) ABI=$(ABI)
 
 riscv_arch: | $(bld_dir)
-	$(MAKE) -C $(tst_dir)/riscv_arch ARCH=$(ARCH)
+	$(MAKE) -C $(tst_dir)/riscv_arch ARCH=$(ARCH) ABI=$(ABI)
 
 hello: | $(bld_dir)
-	-$(MAKE) -C $(tst_dir)/hello EXT_CFLAGS="$(EXT_CFLAGS)" ARCH=$(ARCH)
+	-$(MAKE) -C $(tst_dir)/hello EXT_CFLAGS="$(EXT_CFLAGS)" ARCH=$(ARCH) ABI=$(ABI)
 
 clean_hex: | $(bld_dir)
 	$(RM) $(bld_dir)/*.hex

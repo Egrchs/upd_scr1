@@ -64,3 +64,17 @@ endif ## ifeq (m,$(findstring m,$(ARCH_lowercase)))
 ifneq (,$(findstring c,$(ARCH_lowercase)))
 rv32_isa_tests += isa/rv32uc/rvc.S
 endif ## ifeq (m,$(findstring c,$(ARCH_lowercase)))
+
+ifneq (,$(findstring f,$(ARCH_lowercase)))
+rv32_isa_tests += isa/rv32uf/fadd.S       \
+              isa/rv32uf/fclass.S         \
+              isa/rv32uf/fcmp.S           \
+              isa/rv32uf/fcvt_w.S         \
+              isa/rv32uf/fcvt.S           \
+              isa/rv32uf/fdiv.S           \
+              isa/rv32uf/fmadd.S          \
+              isa/rv32uf/fmin.S           \
+              isa/rv32uf/ldst.S           \
+              isa/rv32uf/move.S           \
+              isa/rv32uf/recoding.S
+endif ## ifeq (f,$(findstring f,$(ARCH_lowercase)))
