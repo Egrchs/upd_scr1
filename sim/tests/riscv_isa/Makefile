@@ -1,15 +1,34 @@
 
+# include rv32_tests.inc
+
+# ARCH_tmp := imf
+
+# ifneq (,$(findstring c,$(ARCH_lowercase)))
+# 	ARCH_tmp := $(ARCH_tmp)c
+# endif
+
+# override ARCH := $(ARCH_tmp)
+
 include rv32_tests.inc
 
-ARCH_tmp := imf
+src_dir := $(CURDIR)
+RISCV_TESTS := $(src_dir)/../../../dependencies/riscv-tests/
 
-ifneq (,$(findstring c,$(ARCH_lowercase)))
-	ARCH_tmp := $(ARCH_tmp)c
+# Если в архитектуре есть 'f', добавляем F-тесты.
+ifneq (,$(findstring f,$(ARCH)))
+    # Находим все F-тесты с помощью wildcard.
+    rv32f_isa_tests := $(wildcard $(RISCV_TESTS)/isa/rv32uf-p-*.S)
+    
+    # Добавляем найденные тесты к списку и используем 'sort' для удаления дубликатов,
+    # если какой-то тест случайно определен и в .inc, и найден через wildcard.
+    rv32_isa_tests := $(sort $(rv32_isa_tests) $(rv32f_isa_tests))
 endif
 
-override ARCH := $(ARCH_tmp)
+# Проверяем, что список тестов не пуст.
+ifeq ($(strip $(rv32_isa_tests)),)
+    $(error No ISA tests found for specified ARCH "$(ARCH)")
+endif
 
-src_dir := $(CURDIR)
 obj_dir   := $(bld_dir)/riscv_objs
 test_list := $(patsubst %.S, %, $(notdir $(rv32_isa_tests)))
 objs      := $(addprefix $(obj_dir)/,$(test_list:%=%.o))
@@ -17,9 +36,9 @@ test_elf  := $(addprefix $(bld_dir)/,$(test_list:%=%.elf))
 test_hex  := $(addprefix $(bld_dir)/,$(test_list:%=%.hex))
 test_dump := $(addprefix $(bld_dir)/,$(test_list:%=%.dump))
 
-CFLAGS := -I$(inc_dir) -I$(src_dir) -DASM -Wa,-march=rv32$(ARCH)_zicsr_zifencei -march=rv32$(ARCH)_zicsr_zifencei -mabi=ilp32f -D__riscv_xlen=32
-LDFLAGS := -static -fvisibility=hidden -nostdlib -nostartfiles -T$(inc_dir)/link.ld -march=rv32$(ARCH)_zicsr_zifencei -mabi=ilp32f
-RISCV_TESTS := $(src_dir)/../../../dependencies/riscv-tests/
+CFLAGS := -I$(inc_dir) -I$(src_dir) -DASM -march=rv32$(ARCH)_zicsr_zifencei -mabi=$(ABI) -D__riscv_xlen=32
+LDFLAGS := -static -fvisibility=hidden -nostdlib -nostartfiles -T$(inc_dir)/link.ld -march=rv32$(ARCH)_zicsr_zifencei -mabi=$(ABI)
+
 
 VPATH += $(src_dir) $(bld_dir) $(obj_dir) $(RISCV_TESTS)
 
