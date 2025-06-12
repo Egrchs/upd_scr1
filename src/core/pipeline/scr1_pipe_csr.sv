@@ -502,7 +502,9 @@ always_comb begin
     csr_mcycle_upd      = 2'b00;
     csr_minstret_upd    = 2'b00;
 `endif // SCR1_CSR_REDUCED_CNT
-
+    `ifdef SCR1_RVF_EXT
+    csr_fcsr_upd        = 1'b0;
+    `endif
 `ifdef SCR1_MCOUNTEN_EN
     csr_mcounten_upd    = 1'b0;
 `endif // SCR1_MCOUNTEN_EN
@@ -518,7 +520,11 @@ always_comb begin
             SCR1_CSR_ADDR_MISA      : begin end
             SCR1_CSR_ADDR_MIE       : csr_mie_upd       = 1'b1;
             SCR1_CSR_ADDR_MTVEC     : csr_mtvec_upd     = 1'b1;
-
+            `ifdef SCR1_RVF_EXT
+            SCR1_CSR_ADDR_FFLAGS,
+            SCR1_CSR_ADDR_FRM,
+            SCR1_CSR_ADDR_FCSR: csr_fcsr_upd = 1'b1;
+            `endif
             // Machine Trap Handling (read-write)
             SCR1_CSR_ADDR_MSCRATCH  : csr_mscratch_upd  = 1'b1;
             SCR1_CSR_ADDR_MEPC      : csr_mepc_upd      = 1'b1;

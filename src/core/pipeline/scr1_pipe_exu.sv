@@ -150,7 +150,19 @@ module scr1_pipe_exu (
     output logic                                exu2hdu_ibrkpt_hw_o,        // Hardware breakpoint on current instruction
   `endif // SCR1_DBG_EN
 `endif // SCR1_TDU_EN
-
+ // ПОРТЫ ДЛЯ FPRF и FPU
+        `ifdef SCR1_RVF_EXT
+    output logic [`SCR1_MPRF_AWIDTH-1:0]       exu2fprf_rs1_addr_o,
+    input  logic [`SCR1_XLEN-1:0]              fprf2exu_rs1_data_i,
+    output logic [`SCR1_MPRF_AWIDTH-1:0]       exu2fprf_rs2_addr_o,
+    input  logic [`SCR1_XLEN-1:0]              fprf2exu_rs2_data_i,
+    output logic [`SCR1_MPRF_AWIDTH-1:0]       exu2fprf_rs3_addr_o,
+    input  logic [`SCR1_XLEN-1:0]              fprf2exu_rs3_data_i,
+    output logic                               exu2fprf_w_req_o,
+    output logic [`SCR1_MPRF_AWIDTH-1:0]       exu2fprf_rd_addr_o,
+    output logic [`SCR1_XLEN-1:0]              exu2fprf_rd_data_o,
+    output logic [4:0]                          exu2csr_fpu_flags_o,
+    `endif
     // PC interface
 `ifdef SCR1_CLKCTRL_EN
     output  logic                               exu2pipe_wfi_halted_o,      // WFI halted state
@@ -159,6 +171,7 @@ module scr1_pipe_exu (
     output  logic [`SCR1_XLEN-1:0]              exu2csr_pc_next_o,          // Next PC
     output  logic                               exu2ifu_pc_new_req_o,       // New PC request
     output  logic [`SCR1_XLEN-1:0]              exu2ifu_pc_new_o            // New PC data
+
 );
 
 //------------------------------------------------------------------------------
@@ -179,6 +192,20 @@ typedef enum logic {
 //------------------------------------------------------------------------------
 // Local signals declaration
 //------------------------------------------------------------------------------
+//FPU
+`ifdef SCR1_RVF_EXT
+    // FSM для FPU
+    typedef enum logic {FPU_IDLE, FPU_BUSY} fpu_state_e;
+    fpu_state_e fpu_state_ff, fpu_state_next;
+
+    logic fpu_req;
+    logic fpu_start_req;
+    logic fpu_ready_for_req;
+    logic fpu_result_valid;
+    logic [`SCR1_XLEN-1:0] fpu_result;
+    logic [4:0] fpu_status_flags;
+   // fpnew_pkg::fpnew_op_e fpu_op_code;
+`endif
 
 // Instruction queue signals
 //------------------------------------------------------------------------------

@@ -50,6 +50,7 @@ rv32_isa_tests += isa/rv32ui/add.S      \
               isa/rv32ui/xor.S          \
               isa/rv32ui/xori.S
 
+
 ifneq (,$(findstring m,$(ARCH_lowercase)))
 rv32_isa_tests += isa/rv32um/div.S      \
               isa/rv32um/divu.S         \
