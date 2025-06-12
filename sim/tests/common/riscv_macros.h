@@ -84,7 +84,7 @@
   csrs mstatus, a0;                                                     \
 
 #define RVTEST_FP_ENABLE                                                \
-  li a0, MSTATUS_FS & (MSTATUS_FS >> 1);                                \
+  li a0, 0x2000;                                                        \
   csrs mstatus, a0;                                                     \
   csrwi fcsr, 0
 
