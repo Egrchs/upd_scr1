@@ -18,7 +18,7 @@ RISCV_TESTS := $(src_dir)/../../../dependencies/riscv-tests/
 ifneq (,$(findstring f,$(ARCH)))
     # Находим все F-тесты с помощью wildcard.
     rv32f_isa_tests := $(wildcard $(RISCV_TESTS)/isa/rv32uf-p-*.S)
-    
+
     # Добавляем найденные тесты к списку и используем 'sort' для удаления дубликатов,
     # если какой-то тест случайно определен и в .inc, и найден через wildcard.
     rv32_isa_tests := $(sort $(rv32_isa_tests) $(rv32f_isa_tests))
