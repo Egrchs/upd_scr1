@@ -234,19 +234,15 @@ export rtl_tb_files  := ahb_tb.files
 export top_module    := scr1_top_tb_ahb
 endif
 
-ifneq (,$(findstring e,$(ARCH_lowercase)))
-# Tests can be compiled for RVE only if gcc version 8.0.0 or higher
-    GCCVERSIONGT7 := $(shell expr `$(RISCV_GCC) -dumpfullversion | cut -f1 -d'.'` \> 7)
-    ifeq "$(GCCVERSIONGT7)" "1"
-        # The 'F' extension dictates the ABI, so we check for it first.
-        ifneq (,$(findstring f,$(ARCH_lowercase)))
-            override ABI := ilp32f
-        else ifneq (,$(findstring e,$(ARCH_lowercase)))
-            override ABI := ilp32e
-        endif
+GCCVERSIONGT7 := $(shell expr `$(RISCV_GCC) -dumpfullversion | cut -f1 -d'.'` \> 7)
+ifeq "$(GCCVERSIONGT7)" "1"
+    # The 'F' extension dictates the ABI, so we check for it first.
+    ifneq (,$(findstring f,$(ARCH_lowercase)))
+        override ABI := ilp32f
+    else ifneq (,$(findstring e,$(ARCH_lowercase)))
+        override ABI := ilp32e
     endif
 endif
-
 #--
 ifeq (,$(findstring e,$(ARCH_lowercase)))
     # Comment this target if you don't want to run the riscv_isa
