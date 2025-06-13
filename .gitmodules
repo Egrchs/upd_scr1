@@ -10,3 +10,6 @@
 [submodule "dependencies/riscv-arch"]
 	path = dependencies/riscv-arch
 	url = https://github.com/riscv/riscv-arch-test
+[submodule "src/core/pipeline/fpnew"]
+	path = src/core/pipeline/fpnew
+	url = git@github.com:ThalesGroup/fpnew.git

@@ -138,7 +138,7 @@ parameter int unsigned SCR1_MTVEC_BASE_WR_BITS = 26;    // number of writable hi
 `define SCR1_CLKCTRL_EN             // enable global clock gating
 `define SCR1_MPRF_RST_EN            // enable reset for MPRF
 `define SCR1_MCOUNTEN_EN            // enable custom MCOUNTEN CSR for counter control
-
+`define SCR1_RVF_EXT                // [MODIFIED] enable standard extension "F" for single-precision floating-point
 // Uncore options
 `define SCR1_DBG_EN                 // enable Debug Subsystem (TAPC, DM, SCU, HDU)
 `define SCR1_TDU_EN                 // enable Trigger Debug Unit (hardware breakpoints)

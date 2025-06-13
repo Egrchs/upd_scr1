@@ -1,7 +1,6 @@
 /// Copyright by Syntacore LLC © 2016-2021. See LICENSE for details
 /// @file       <scr1_riscv_isa_decoding.svh>
 /// @brief      RISC-V ISA definitions file
-///
 
 `ifndef SCR1_RISCV_ISA_DECODING_SVH
 `define SCR1_RISCV_ISA_DECODING_SVH
@@ -24,12 +23,15 @@ typedef enum logic [1:0] {
 //-------------------------------------------------------------------------------
 typedef enum logic [6:2] {
     SCR1_OPCODE_LOAD        = 5'b00000,
+    SCR1_OPCODE_LOAD_FP     = 5'b00001, // [MODIFIED]
     SCR1_OPCODE_MISC_MEM    = 5'b00011,
     SCR1_OPCODE_OP_IMM      = 5'b00100,
     SCR1_OPCODE_AUIPC       = 5'b00101,
     SCR1_OPCODE_STORE       = 5'b01000,
+    SCR1_OPCODE_STORE_FP    = 5'b01001, // [MODIFIED]
     SCR1_OPCODE_OP          = 5'b01100,
     SCR1_OPCODE_LUI         = 5'b01101,
+    SCR1_OPCODE_OP_FP       = 5'b10100, // [MODIFIED]
     SCR1_OPCODE_BRANCH      = 5'b11000,
     SCR1_OPCODE_JALR        = 5'b11001,
     SCR1_OPCODE_JAL         = 5'b11011,
@@ -102,7 +104,11 @@ typedef enum logic [SCR1_SUM2_OP_WIDTH_E-1:0] {
 //-------------------------------------------------------------------------------
 // LSU commands
 //-------------------------------------------------------------------------------
-localparam SCR1_LSU_CMD_ALL_NUM_E   = 9;
+`ifdef SCR1_RVF_EXT
+    localparam SCR1_LSU_CMD_ALL_NUM_E   = 11;
+`else
+    localparam SCR1_LSU_CMD_ALL_NUM_E   = 9;
+`endif
 localparam SCR1_LSU_CMD_WIDTH_E     = $clog2(SCR1_LSU_CMD_ALL_NUM_E);
 typedef enum logic [SCR1_LSU_CMD_WIDTH_E-1:0] {
     SCR1_LSU_CMD_NONE = '0,
@@ -114,6 +120,9 @@ typedef enum logic [SCR1_LSU_CMD_WIDTH_E-1:0] {
     SCR1_LSU_CMD_SB,
     SCR1_LSU_CMD_SH,
     SCR1_LSU_CMD_SW
+    `ifdef SCR1_RVF_EXT
+    , LSU_CMD_FLW, LSU_CMD_FSW
+    `endif
 } type_scr1_lsu_cmd_sel_e;
 
 //-------------------------------------------------------------------------------
@@ -141,7 +150,11 @@ typedef enum logic [SCR1_CSR_CMD_WIDTH_E-1:0] {
 //-------------------------------------------------------------------------------
 // MPRF rd writeback source
 //-------------------------------------------------------------------------------
-localparam SCR1_RD_WB_ALL_NUM_E = 7;
+`ifdef SCR1_RVF_EXT
+    localparam SCR1_RD_WB_ALL_NUM_E = 8;
+`else
+    localparam SCR1_RD_WB_ALL_NUM_E = 7;
+`endif
 localparam SCR1_RD_WB_WIDTH_E   = $clog2(SCR1_RD_WB_ALL_NUM_E);
 typedef enum logic [SCR1_RD_WB_WIDTH_E-1:0] {
     SCR1_RD_WB_NONE = '0,
@@ -151,8 +164,18 @@ typedef enum logic [SCR1_RD_WB_WIDTH_E-1:0] {
     SCR1_RD_WB_INC_PC,          // JAL(R)
     SCR1_RD_WB_LSU,             // Load from DMEM
     SCR1_RD_WB_CSR              // Read CSR
+    `ifdef SCR1_RVF_EXT
+    , SCR1_RD_WB_FPU
+    `endif
 } type_scr1_rd_wb_sel_e;
-
+`ifdef SCR1_RVF_EXT
+// FPU commands
+typedef enum logic [3:0] {
+    FPU_CMD_NONE, FPU_CMD_ADD, FPU_CMD_SUB, FPU_CMD_MUL, FPU_CMD_DIV, FPU_CMD_SQRT,
+    FPU_CMD_SGNJ, FPU_CMD_MINMAX, FPU_CMD_CVT_F_I, FPU_CMD_CVT_I_F, FPU_CMD_CMP,
+    FPU_CMD_CLASS, FPU_CMD_MV_X_F, FPU_CMD_MV_F_X
+} type_scr1_fpu_cmd_e;
+`endif
 //-------------------------------------------------------------------------------
 // IDU to EXU full command structure
 //-------------------------------------------------------------------------------
@@ -179,6 +202,12 @@ typedef struct packed {
                                                         // used as instruction field for illegal instruction exception
     logic                               exc_req;
     type_scr1_exc_code_e                exc_code;
+    `ifdef SCR1_RVF_EXT
+    logic                               is_fp_op;
+    type_scr1_fpu_cmd_e                 fpu_cmd;
+    logic [2:0]                         fpu_rm;
+    logic [4:0]                         rs3_addr;
+    `endif
 } type_scr1_exu_cmd_s;
 
 `endif // SCR1_RISCV_ISA_DECODING_SVH

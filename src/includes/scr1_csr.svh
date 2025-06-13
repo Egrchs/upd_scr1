@@ -41,6 +41,12 @@ parameter bit [SCR1_CSR_ADDR_WIDTH-1:0] SCR1_CSR_ADDR_MCAUSE        = SCR1_CSR_A
 parameter bit [SCR1_CSR_ADDR_WIDTH-1:0] SCR1_CSR_ADDR_MTVAL         = SCR1_CSR_ADDR_WIDTH'('h343);
 parameter bit [SCR1_CSR_ADDR_WIDTH-1:0] SCR1_CSR_ADDR_MIP           = SCR1_CSR_ADDR_WIDTH'('h344);
 
+// Floating-Point CSRs (read-write)
+`ifdef SCR1_RVF_EXT
+    parameter bit [SCR1_CSR_ADDR_WIDTH-1:0] SCR1_CSR_ADDR_FFLAGS = SCR1_CSR_ADDR_WIDTH'('h001);
+    parameter bit [SCR1_CSR_ADDR_WIDTH-1:0] SCR1_CSR_ADDR_FRM    = SCR1_CSR_ADDR_WIDTH'('h002);
+    parameter bit [SCR1_CSR_ADDR_WIDTH-1:0] SCR1_CSR_ADDR_FCSR   = SCR1_CSR_ADDR_WIDTH'('h003);
+`endif
 // Machine Counters/Timers (read-write)
 `ifndef SCR1_CSR_REDUCED_CNT
 parameter bit [SCR1_CSR_ADDR_WIDTH-1:0] SCR1_CSR_ADDR_MCYCLE        = SCR1_CSR_ADDR_WIDTH'('hB00);
@@ -114,6 +120,7 @@ parameter bit SCR1_CSR_MSTATUS_MPIE_RST_VAL         = 1'b1;
 `define SCR1_RVE_ENC                                `SCR1_XLEN'h0010
 `define SCR1_RVI_ENC                                `SCR1_XLEN'h0100
 `define SCR1_RVM_ENC                                `SCR1_XLEN'h1000
+`define SCR1_RVF_ENC                                `SCR1_XLEN'h0020
 parameter bit [1:0]             SCR1_MISA_MXL_32    = 2'd1;
 parameter bit [`SCR1_XLEN-1:0]  SCR1_CSR_MISA       = (SCR1_MISA_MXL_32 << (`SCR1_XLEN-2))
 `ifndef SCR1_RVE_EXT
@@ -127,7 +134,10 @@ parameter bit [`SCR1_XLEN-1:0]  SCR1_CSR_MISA       = (SCR1_MISA_MXL_32 << (`SCR
 `ifdef SCR1_RVM_EXT
                                                     | `SCR1_RVM_ENC
 `endif // SCR1_RVM_EXT
-                                                    ;
+`ifdef SCR1_RVF_EXT
+                                                    | `SCR1_RVF_ENC
+`endif // SCR1_RVF_EXT
+;
 
 // MVENDORID
 parameter bit [`SCR1_XLEN-1:0] SCR1_CSR_MVENDORID   = `SCR1_MVENDORID;
