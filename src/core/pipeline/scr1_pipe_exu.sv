@@ -42,7 +42,9 @@
 `include "scr1_memif.svh"
 `include "scr1_riscv_isa_decoding.svh"
 `include "scr1_csr.svh"
-
+`ifdef SCR1_RVF_EXT
+`include "fpnew_pkg.sv"
+`endif
 `ifdef SCR1_DBG_EN
  `include "scr1_hdu.svh"
 `endif // SCR1_DBG_EN

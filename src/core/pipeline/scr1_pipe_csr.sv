@@ -116,6 +116,10 @@ module scr1_pipe_csr (
     input   type_scr1_csr_resp_e                        tdu2csr_resp_i,             // TDU response
 `endif // SCR1_TDU_EN
 
+`ifdef SCR1_RVF_EXT
+    input   logic [4:0]                                 exu2csr_fpu_flags_i,
+`endif
+
     // CSR <-> EXU PC interface
 `ifndef SCR1_CSR_REDUCED_CNT
     input   logic                                       exu2csr_instret_no_exc_i,   // Instruction retired (without exception)
@@ -123,6 +127,8 @@ module scr1_pipe_csr (
     input   logic [`SCR1_XLEN-1:0]                      exu2csr_pc_curr_i,          // Current PC
     input   logic [`SCR1_XLEN-1:0]                      exu2csr_pc_next_i,          // Next PC
     output  logic [`SCR1_XLEN-1:0]                      csr2exu_new_pc_o            // Exception/IRQ/MRET new PC
+
+
 );
 
 //------------------------------------------------------------------------------
@@ -198,6 +204,10 @@ logic                                               csr_mip_mtip;           // M
 logic                                               csr_mip_meip;           // MIP: Machine external interrupt pending
 logic                                               csr_mip_msip;           // MIP: Machine software interrupt pending
 
+`ifdef SCR1_RVF_EXT
+    logic                                               csr_fcsr_upd;
+    logic [`SCR1_XLEN-1:0]                              csr_fcsr_ff;
+`endif
 // Machine Counters/Timers registers
 //------------------------------------------------------------------------------
 
@@ -340,7 +350,11 @@ always_comb begin
         SCR1_CSR_ADDR_MARCHID   : csr_r_data    = SCR1_CSR_MARCHID;
         SCR1_CSR_ADDR_MIMPID    : csr_r_data    = SCR1_CSR_MIMPID;
         SCR1_CSR_ADDR_MHARTID   : csr_r_data    = soc2csr_fuse_mhartid_i;
-
+        `ifdef SCR1_RVF_EXT
+        SCR1_CSR_ADDR_FFLAGS: csr_r_data = {'0, csr_fcsr_ff[4:0]};
+        SCR1_CSR_ADDR_FRM:    csr_r_data = {'0, csr_fcsr_ff[7:5]};
+        SCR1_CSR_ADDR_FCSR:   csr_r_data = csr_fcsr_ff;
+        `endif
         // Machine Trap Setup (read-write)
         SCR1_CSR_ADDR_MSTATUS   : csr_r_data    = csr_mstatus;
         SCR1_CSR_ADDR_MISA      : csr_r_data    = SCR1_CSR_MISA;
@@ -488,7 +502,9 @@ always_comb begin
     csr_mcause_upd      = 1'b0;
     csr_mtval_upd       = 1'b0;
     csr_mtvec_upd       = 1'b0;
-
+    `ifdef SCR1_RVF_EXT
+    csr_fcsr_upd        = 1'b0;
+    `endif
 `ifndef SCR1_CSR_REDUCED_CNT
     csr_mcycle_upd      = 2'b00;
     csr_minstret_upd    = 2'b00;
@@ -509,7 +525,11 @@ always_comb begin
             SCR1_CSR_ADDR_MISA      : begin end
             SCR1_CSR_ADDR_MIE       : csr_mie_upd       = 1'b1;
             SCR1_CSR_ADDR_MTVEC     : csr_mtvec_upd     = 1'b1;
-
+            `ifdef SCR1_RVF_EXT
+            SCR1_CSR_ADDR_FFLAGS,
+            SCR1_CSR_ADDR_FRM,
+            SCR1_CSR_ADDR_FCSR: csr_fcsr_upd = 1'b1;
+            `endif
             // Machine Trap Handling (read-write)
             SCR1_CSR_ADDR_MSCRATCH  : csr_mscratch_upd  = 1'b1;
             SCR1_CSR_ADDR_MEPC      : csr_mepc_upd      = 1'b1;
@@ -591,7 +611,6 @@ always_comb begin
             SCR1_CSR_ADDR_TDU_TINFO: begin
             end
 `endif // SCR1_TDU_EN
-
             default : begin
                 csr_w_exc   = 1'b1;
             end
@@ -651,7 +670,26 @@ always_comb begin
     csr_mstatus[SCR1_CSR_MSTATUS_MPIE_OFFSET]                              = csr_mstatus_mpie_ff;
     csr_mstatus[SCR1_CSR_MSTATUS_MPP_OFFSET+1:SCR1_CSR_MSTATUS_MPP_OFFSET] = SCR1_CSR_MSTATUS_MPP;
 end
-
+`ifdef SCR1_RVF_EXT
+always_ff @(posedge clk, negedge rst_n) begin
+    if (~rst_n) begin
+        csr_fcsr_ff <= '0;
+    end else begin
+        // Флаги от FPU имеют приоритет и накапливаются
+        if (|exu2csr_fpu_flags_i) begin
+            csr_fcsr_ff[4:0] <= csr_fcsr_ff[4:0] | exu2csr_fpu_flags_i;
+        end else if (csr_fcsr_upd) begin
+            // Запись через CSR-инструкцию
+            case (exu2csr_rw_addr_i)
+                SCR1_CSR_ADDR_FFLAGS: csr_fcsr_ff[4:0] <= csr_w_data[4:0];
+                SCR1_CSR_ADDR_FRM:    csr_fcsr_ff[7:5] <= csr_w_data[7:5];
+                SCR1_CSR_ADDR_FCSR:   csr_fcsr_ff[7:0] <= csr_w_data[7:0];
+                default: ;
+            endcase
+        end
+    end
+end
+`endif
 // MIE register
 //------------------------------------------------------------------------------
 // Contains interrupt enable bits (external, software, timer IRQs)

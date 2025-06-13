@@ -121,14 +121,27 @@ assign dmem_cmd_load  = (exu2lsu_cmd_i == SCR1_LSU_CMD_LB )
                       | (exu2lsu_cmd_i == SCR1_LSU_CMD_LBU)
                       | (exu2lsu_cmd_i == SCR1_LSU_CMD_LH )
                       | (exu2lsu_cmd_i == SCR1_LSU_CMD_LHU)
-                      | (exu2lsu_cmd_i == SCR1_LSU_CMD_LW );
+                      | (exu2lsu_cmd_i == SCR1_LSU_CMD_LW )
+                       `ifdef SCR1_RVF_EXT
+                      | (exu2lsu_cmd_i == LSU_CMD_FLW)
+                      `endif
+                      ;;
 assign dmem_cmd_store = (exu2lsu_cmd_i == SCR1_LSU_CMD_SB )
                       | (exu2lsu_cmd_i == SCR1_LSU_CMD_SH )
-                      | (exu2lsu_cmd_i == SCR1_LSU_CMD_SW );
+                      | (exu2lsu_cmd_i == SCR1_LSU_CMD_SW )
+                      `ifdef SCR1_RVF_EXT
+                      | (exu2lsu_cmd_i == LSU_CMD_FSW)
+                      `endif
+                      ;;
 
 // LSU data width flags
 assign dmem_wdth_word  = (exu2lsu_cmd_i == SCR1_LSU_CMD_LW )
-                       | (exu2lsu_cmd_i == SCR1_LSU_CMD_SW );
+                       | (exu2lsu_cmd_i == SCR1_LSU_CMD_SW )
+                        `ifdef SCR1_RVF_EXT
+                       | (exu2lsu_cmd_i == LSU_CMD_FLW)
+                       | (exu2lsu_cmd_i == LSU_CMD_FSW)
+                       `endif
+                       ;;
 assign dmem_wdth_hword = (exu2lsu_cmd_i == SCR1_LSU_CMD_LH )
                        | (exu2lsu_cmd_i == SCR1_LSU_CMD_LHU)
                        | (exu2lsu_cmd_i == SCR1_LSU_CMD_SH );
@@ -152,10 +165,16 @@ assign lsu_cmd_ff_load  = (lsu_cmd_ff == SCR1_LSU_CMD_LB )
                         | (lsu_cmd_ff == SCR1_LSU_CMD_LBU)
                         | (lsu_cmd_ff == SCR1_LSU_CMD_LH )
                         | (lsu_cmd_ff == SCR1_LSU_CMD_LHU)
-                        | (lsu_cmd_ff == SCR1_LSU_CMD_LW );
+                        | (lsu_cmd_ff == SCR1_LSU_CMD_LW )
+                        `ifdef SCR1_RVF_EXT
+                        | (lsu_cmd_ff == LSU_CMD_FLW)
+                        `endif;
 assign lsu_cmd_ff_store = (lsu_cmd_ff == SCR1_LSU_CMD_SB )
                         | (lsu_cmd_ff == SCR1_LSU_CMD_SH )
-                        | (lsu_cmd_ff == SCR1_LSU_CMD_SW );
+                        | (lsu_cmd_ff == SCR1_LSU_CMD_SW )
+                        `ifdef SCR1_RVF_EXT
+                        | (lsu_cmd_ff == LSU_CMD_FSW)
+                        `endif;
 
 //------------------------------------------------------------------------------
 // LSU FSM
@@ -243,6 +262,9 @@ always_comb begin
         SCR1_LSU_CMD_LHU: lsu2exu_ldata_o = { 16'b0,                     dmem2lsu_rdata_i[15:0]};
         SCR1_LSU_CMD_LB : lsu2exu_ldata_o = {{24{dmem2lsu_rdata_i[7]}},  dmem2lsu_rdata_i[7:0]};
         SCR1_LSU_CMD_LBU: lsu2exu_ldata_o = { 24'b0,                     dmem2lsu_rdata_i[7:0]};
+                `ifdef SCR1_RVF_EXT
+        LSU_CMD_FLW:      lsu2exu_ldata_o = dmem2lsu_rdata_i;
+        `endif
         default         : lsu2exu_ldata_o = dmem2lsu_rdata_i;
     endcase // lsu_cmd_ff
 end
