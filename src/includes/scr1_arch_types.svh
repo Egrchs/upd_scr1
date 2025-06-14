@@ -22,7 +22,7 @@
 
 typedef logic [`SCR1_XLEN-1:0]  type_scr1_mprf_v;
 typedef logic [`SCR1_XLEN-1:0]  type_scr1_pc_v;
-
+typedef logic [`SCR1_XLEN-1:0] type_scr1_fprf_v;
 parameter int unsigned  SCR1_CSR_ADDR_WIDTH             = 12;
 parameter int unsigned  SCR1_CSR_MTVEC_BASE_ZERO_BITS   = 6;
 parameter int unsigned  SCR1_CSR_MTVEC_BASE_VAL_BITS    = `SCR1_XLEN-SCR1_CSR_MTVEC_BASE_ZERO_BITS;

@@ -519,15 +519,16 @@ scr1_pipe_mprf i_pipe_mprf (
 `ifdef SCR1_RVF_EXT
 scr1_pipe_fprf i_pipe_fprf (
                             .clk(clk),
-                            .rs1_addr_i(exu2fprf_rs1_addr),
-                            .rs1_data_o(fprf2exu_rs1_data),
-                            .rs2_addr_i(exu2fprf_rs2_addr),
-                            .rs2_data_o(fprf2exu_rs2_data),
-                            .rs3_addr_i(exu2fprf_rs3_addr),
-                            .rs3_data_o(fprf2exu_rs3_data),
-                            .w_req_i(exu2fprf_w_req),
-                            .rd_addr_i(exu2fprf_rd_addr),
-                            .rd_data_i(exu2fprf_rd_data) );
+                            .rst_n                  (pipe_rst_n   ),
+                            .exu2fprf_frs1_addr_i(exu2fprf_rs1_addr),
+                            .fprf2exu_frs1_data_o(fprf2exu_rs1_data),
+                            .exu2fprf_frs2_addr_i(exu2fprf_rs2_addr),
+                            .fprf2exu_frs2_data_o(fprf2exu_rs2_data),
+                            .exu2fprf_frs3_addr_i(exu2fprf_rs3_addr),
+                            .fprf2exu_frs3_data_o(fprf2exu_rs3_data),
+                            .exu2fprf_w_req_i(exu2fprf_w_req),
+                            .exu2fprf_frd_addr_i(exu2fprf_rd_addr),
+                            .exu2fprf_frd_data_i(exu2fprf_rd_data) );
 `endif
 //-------------------------------------------------------------------------------
 // Control and status registers
