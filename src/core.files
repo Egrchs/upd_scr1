@@ -36,4 +36,13 @@ core/pipeline/fpnew/src/fpnew_pipe_inside_fma.sv
 core/pipeline/fpnew/src/fpnew_pipe_inside_cast.sv
 core/pipeline/fpnew/src/fpnew_rounding.sv
 core/pipeline/fpnew/src/fpnew_top.sv
-core/pipeline/fpnew/src/common_cells/include/common_cells/registers.svh
+core/pipeline/fpnew/src/common_cells/src/rr_arb_tree.sv
+core/pipeline/fpnew/src/common_cells/src/lzc.sv
+core/pipeline/fpnew/src/fpu_div_sqrt_mvp/hdl/defs_div_sqrt_mvp.sv
+core/pipeline/fpnew/src/fpu_div_sqrt_mvp/hdl/control_mvp.sv
+core/pipeline/fpnew/src/fpu_div_sqrt_mvp/hdl/div_sqrt_mvp_wrapper.sv
+core/pipeline/fpnew/src/fpu_div_sqrt_mvp/hdl/div_sqrt_top_mvp.sv
+core/pipeline/fpnew/src/fpu_div_sqrt_mvp/hdl/iteration_div_sqrt_mvp.sv
+core/pipeline/fpnew/src/fpu_div_sqrt_mvp/hdl/norm_div_sqrt_mvp.sv
+core/pipeline/fpnew/src/fpu_div_sqrt_mvp/hdl/nrbd_nrsc_mvp.sv
+core/pipeline/fpnew/src/fpu_div_sqrt_mvp/hdl/preprocess_mvp.sv

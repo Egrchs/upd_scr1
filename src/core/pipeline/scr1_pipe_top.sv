@@ -160,6 +160,19 @@ logic                                       exu2mprf_w_req;         // MPRF writ
 logic [`SCR1_MPRF_AWIDTH-1:0]               exu2mprf_rd_addr;       // MPRF rd write address
 logic [`SCR1_XLEN-1:0]                      exu2mprf_rd_data;       // MPRF rd write data
 
+`ifdef SCR1_RVF_EXT
+logic [`SCR1_MPRF_AWIDTH-1:0]       exu2fprf_rs1_addr;
+logic [`SCR1_XLEN-1:0] fprf2exu_rs1_data;
+logic [`SCR1_MPRF_AWIDTH-1:0]       exu2fprf_rs2_addr;
+logic [`SCR1_XLEN-1:0] fprf2exu_rs2_data;
+logic [`SCR1_MPRF_AWIDTH-1:0]       exu2fprf_rs3_addr;
+logic [`SCR1_XLEN-1:0] fprf2exu_rs3_data;
+logic exu2fprf_w_req;
+logic [`SCR1_MPRF_AWIDTH-1:0]       exu2fprf_rd_addr;
+logic [`SCR1_XLEN-1:0] exu2fprf_rd_data;
+logic [4:0] exu2csr_fpu_flags;
+`endif
+
 // EXU <-> CSR
 logic [SCR1_CSR_ADDR_WIDTH-1:0]             exu2csr_rw_addr;        // CSR read/write address
 logic                                       exu2csr_r_req;          // CSR read request
@@ -460,7 +473,18 @@ scr1_pipe_exu i_pipe_exu (
     .exu2csr_instret_no_exc_o       (instret_nexc            ),
 `endif // SCR1_CSR_REDUCED_CNT
     .exu2pipe_exu_busy_o            (exu_busy                ),
-
+`ifdef SCR1_RVF_EXT
+    .exu2fprf_rs1_addr_o(exu2fprf_rs1_addr),
+    .fprf2exu_rs1_data_i(fprf2exu_rs1_data),
+    .exu2fprf_rs2_addr_o(exu2fprf_rs2_addr),
+    .fprf2exu_rs2_data_i(fprf2exu_rs2_data),
+    .exu2fprf_rs3_addr_o(exu2fprf_rs3_addr),
+    .fprf2exu_rs3_data_i(fprf2exu_rs3_data),
+    .exu2fprf_w_req_o(exu2fprf_w_req),
+    .exu2fprf_rd_addr_o(exu2fprf_rd_addr),
+    .exu2fprf_rd_data_o(exu2fprf_rd_data),
+    .exu2csr_fpu_flags_o(exu2csr_fpu_flags),
+`endif
     // PC interface
 `ifdef SCR1_CLKCTRL_EN
     .exu2pipe_wfi_halted_o          (wfi_halted              ),
@@ -469,6 +493,7 @@ scr1_pipe_exu i_pipe_exu (
     .exu2csr_pc_next_o              (next_pc                 ),
     .exu2ifu_pc_new_req_o           (new_pc_req              ),
     .exu2ifu_pc_new_o               (new_pc                  )
+
 );
 
 //-------------------------------------------------------------------------------
@@ -490,6 +515,20 @@ scr1_pipe_mprf i_pipe_mprf (
     .exu2mprf_rd_data_i     (exu2mprf_rd_data )
 );
 
+// Floating-point register file //------------------------------------------------------------------------------- i
+`ifdef SCR1_RVF_EXT
+scr1_pipe_fprf i_pipe_fprf (
+                            .clk(clk),
+                            .rs1_addr_i(exu2fprf_rs1_addr),
+                            .rs1_data_o(fprf2exu_rs1_data),
+                            .rs2_addr_i(exu2fprf_rs2_addr),
+                            .rs2_data_o(fprf2exu_rs2_data),
+                            .rs3_addr_i(exu2fprf_rs3_addr),
+                            .rs3_data_o(fprf2exu_rs3_data),
+                            .w_req_i(exu2fprf_w_req),
+                            .rd_addr_i(exu2fprf_rd_addr),
+                            .rd_data_i(exu2fprf_rd_data) );
+`endif
 //-------------------------------------------------------------------------------
 // Control and status registers
 //-------------------------------------------------------------------------------
@@ -522,7 +561,9 @@ scr1_pipe_csr i_pipe_csr (
     .csr2exu_irq_o              (csr2exu_irq             ),
     .csr2exu_ip_ie_o            (csr2exu_ip_ie           ),
     .csr2exu_mstatus_mie_up_o   (csr2exu_mstatus_mie_up  ),
-
+`ifdef SCR1_RVF_EXT
+    .exu2csr_fpu_flags_i(exu2csr_fpu_flags),
+    `endif
 `ifdef SCR1_IPIC_EN
     // CSR <-> IPIC interface
     .csr2ipic_r_req_o           (csr2ipic_r_req          ),

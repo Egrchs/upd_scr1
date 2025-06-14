@@ -42,9 +42,7 @@
 `include "scr1_memif.svh"
 `include "scr1_riscv_isa_decoding.svh"
 `include "scr1_csr.svh"
-`ifdef SCR1_RVF_EXT
-`include "fpnew_pkg.sv"
-`endif
+
 `ifdef SCR1_DBG_EN
  `include "scr1_hdu.svh"
 `endif // SCR1_DBG_EN
@@ -52,7 +50,10 @@
 `ifdef SCR1_TDU_EN
  `include "scr1_tdu.svh"
 `endif // SCR1_TDU_EN
-
+`ifdef SCR1_RVF_EXT
+`include "fp_pkg.svh"
+`include "fpnew/src/fpnew_pkg.sv"
+`endif
 module scr1_pipe_exu (
     // Common
     input   logic                               rst_n,                      // EXU reset
@@ -112,6 +113,21 @@ module scr1_pipe_exu (
     input   logic                               dmem2exu_req_ack_i,         // Data memory request acknowledge
     input   logic [`SCR1_DMEM_DWIDTH-1:0]       dmem2exu_rdata_i,           // Data memory read data
     input   type_scr1_mem_resp_e                dmem2exu_resp_i,            // Data memory response
+
+        // --- [ИЗМЕНЕНИЕ] ПОРТЫ ДЛЯ FPRF и FPU ---
+    `ifdef SCR1_RVF_EXT
+    output logic [`SCR1_MPRF_AWIDTH-1:0]       exu2fprf_rs1_addr_o,
+    input  logic [`SCR1_XLEN-1:0]              fprf2exu_rs1_data_i,
+    output logic [`SCR1_MPRF_AWIDTH-1:0]       exu2fprf_rs2_addr_o,
+    input  logic [`SCR1_XLEN-1:0]              fprf2exu_rs2_data_i,
+    output logic [`SCR1_MPRF_AWIDTH-1:0]       exu2fprf_rs3_addr_o,
+    input  logic [`SCR1_XLEN-1:0]              fprf2exu_rs3_data_i,
+    output logic                               exu2fprf_w_req_o,
+    output logic [`SCR1_MPRF_AWIDTH-1:0]       exu2fprf_rd_addr_o,
+    output logic [`SCR1_XLEN-1:0]              exu2fprf_rd_data_o,
+    output logic [4:0]                          exu2csr_fpu_flags_o,
+    `endif
+    // --- КОНЕЦ ИЗМЕНЕНИЙ ---
 
     // EXU control
     output  logic                               exu2pipe_exc_req_o,         // Exception on last instruction
@@ -203,6 +219,21 @@ logic                               exu_queue_vd_upd;
 logic                               exu_queue_vd_ff;
 logic                               exu_queue_vd_next;
 `endif // SCR1_NO_EXE_STAGE
+
+//FPU
+`ifdef SCR1_RVF_EXT
+    // FSM для FPU
+    typedef enum logic {FPU_IDLE, FPU_BUSY} fpu_state_e;
+    fpu_state_e fpu_state_ff, fpu_state_next;
+
+    logic fpu_req;
+    logic fpu_start_req;
+    logic fpu_ready_for_req;
+    logic fpu_result_valid;
+    logic [`SCR1_XLEN-1:0] fpu_result;
+    logic [4:0] fpu_status_flags;
+    fp_pkg::fpnew_op_e fpu_op_code;
+`endif
 
 // IALU signals
 //------------------------------------------------------------------------------
@@ -466,6 +497,69 @@ scr1_pipe_ialu i_ialu(
     .ialu2exu_addr_res_o        (ialu_addr_res     )
 );
 
+
+`ifdef SCR1_RVF_EXT
+//------------------------------------------------------------------------------
+// Floating-Point Unit (FPU)
+//------------------------------------------------------------------------------
+assign fpu_req = exu_queue_vd & exu_queue.is_fp_op & (exu_queue.fpu_cmd != FPU_CMD_NONE);
+
+// FSM для управления многотактовым FPU
+always_ff @(posedge clk, negedge rst_n) begin
+    if (~rst_n) fpu_state_ff <= FPU_IDLE;
+    else fpu_state_ff <= fpu_state_next;
+end
+
+always_comb begin
+    fpu_state_next = fpu_state_ff;
+    case(fpu_state_ff)
+        FPU_IDLE: if (fpu_req && fpu_ready_for_req) fpu_state_next = FPU_BUSY;
+        FPU_BUSY: if (fpu_result_valid) fpu_state_next = FPU_IDLE;
+    endcase
+end
+
+// Запускаем FPU только когда он готов и мы в состоянии IDLE
+assign fpu_start_req = (fpu_state_ff == FPU_IDLE) && fpu_req && fpu_ready_for_req;
+
+// Логика преобразования нашей команды в команду FPNew
+always_comb begin
+    fpu_op_code = fp_pkg::FP_ADD; // Значение по умолчанию
+    case (exu_queue.fpu_cmd)
+        FPU_CMD_ADD: fpu_op_code = fp_pkg::FP_ADD;
+        FPU_CMD_SUB: fpu_op_code = fp_pkg::FP_SUB;
+        FPU_CMD_MUL: fpu_op_code = fp_pkg::FP_MUL;
+        FPU_CMD_DIV: fpu_op_code = fp_pkg::FP_DIV;
+        FPU_CMD_SQRT: fpu_op_code = fp_pkg::FP_SQRT;
+        // Добавьте сюда другие команды по мере необходимости
+        default: fpu_op_code = fp_pkg::FP_ADD;
+    endcase
+end
+fpnew_top #(
+    .Features (fpnew_pkg::RV32F), // S - одинарная точность
+    .Implementation(fpnew_pkg::DEFAULT_NOREGS)
+) i_fpnew (
+    .clk_i(clk),
+    .rst_ni(rst_n),
+
+    .op_i(fpu_op_code),
+    .op_mod_i(0),
+    .src_fmt_i(fp_pkg::FMT_S),
+    .dst_fmt_i(fp_pkg::FMT_S),
+    .int_fmt_i(fp_pkg::INT_W),
+    .rnd_mode_i(exu_queue.fpu_rm),
+    .operands_i({fprf2exu_rs3_data_i, fprf2exu_rs2_data_i, fprf2exu_rs1_data_i}),
+    .in_valid_i(fpu_start_req),
+    .out_ready_i(fpu_ready_for_req),
+
+    .result_o(fpu_result),
+    .status_o(fpu_status_flags),
+    .out_valid_o(fpu_result_valid)
+);
+// Инстанс FPNew
+// Вам нужно будет убедиться, что путь к fpnew_top.sv и fpnew_pkg.sv
+// указан в путях инклюдов вашего симулятора.
+
+`endif
 //------------------------------------------------------------------------------
 // Exceptions logic
 //------------------------------------------------------------------------------
@@ -804,6 +898,7 @@ always_comb begin
         ialu_vd                 : exu_rdy = ialu_rdy;
 `endif // SCR1_RVM_EXT
         csr2exu_mstatus_mie_up_i: exu_rdy = 1'b0;
+
         default                 : exu_rdy = 1'b1;
     endcase
 end
@@ -891,6 +986,24 @@ always_comb begin
     endcase
 end
 
+
+`ifdef SCR1_RVF_EXT
+// Запросы на чтение из FPRF
+assign exu2fprf_rs1_addr_o = exu_queue.is_fp_op ? exu_queue.rs1_addr : '0;
+assign exu2fprf_rs2_addr_o = exu_queue.is_fp_op ? exu_queue.rs2_addr : '0;
+assign exu2fprf_rs3_addr_o = exu_queue.is_fp_op ? exu_queue.rs3_addr : '0;
+
+// Запрос на запись в FPRF
+assign exu2fprf_w_req_o = ((exu_queue.rd_wb_sel == SCR1_RD_WB_FPU && fpu_result_valid) ||
+                         (exu_queue.lsu_cmd == LSU_CMD_FLW && lsu_rdy))
+                         & exu_queue_vd & ~exu_exc_req;
+
+assign exu2fprf_rd_addr_o = exu_queue.rd_addr;
+assign exu2fprf_rd_data_o = (exu_queue.rd_wb_sel == SCR1_RD_WB_FPU) ? fpu_result : lsu_l_data;
+
+// Передача флагов в CSR
+assign exu2csr_fpu_flags_o = fpu_result_valid ? fpu_status_flags : 5'b0;
+`endif
 //------------------------------------------------------------------------------
 // EXU <-> CSR interface
 //------------------------------------------------------------------------------
