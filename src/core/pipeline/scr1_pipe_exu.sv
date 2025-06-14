@@ -232,7 +232,7 @@ logic                               exu_queue_vd_next;
     logic fpu_result_valid;
     logic [`SCR1_XLEN-1:0] fpu_result;
     logic [4:0] fpu_status_flags;
-    fp_pkg::fpnew_op_e fpu_op_code;
+    fpnew_pkg::operation_e fpu_op_code;
 `endif
 
 // IALU signals
@@ -523,15 +523,15 @@ assign fpu_start_req = (fpu_state_ff == FPU_IDLE) && fpu_req && fpu_ready_for_re
 
 // Логика преобразования нашей команды в команду FPNew
 always_comb begin
-    fpu_op_code = fp_pkg::FP_ADD; // Значение по умолчанию
+    fpu_op_code = fpnew_pkg::ADD; // Значение по умолчанию
     case (exu_queue.fpu_cmd)
-        FPU_CMD_ADD: fpu_op_code = fp_pkg::FP_ADD;
-        FPU_CMD_SUB: fpu_op_code = fp_pkg::FP_SUB;
-        FPU_CMD_MUL: fpu_op_code = fp_pkg::FP_MUL;
-        FPU_CMD_DIV: fpu_op_code = fp_pkg::FP_DIV;
-        FPU_CMD_SQRT: fpu_op_code = fp_pkg::FP_SQRT;
+        FPU_CMD_ADD: fpu_op_code = fpnew_pkg::ADD;
+        FPU_CMD_SUB: fpu_op_code = fpnew_pkg::FNMSUB;
+        FPU_CMD_MUL: fpu_op_code = fpnew_pkg::MUL;
+        FPU_CMD_DIV: fpu_op_code = fpnew_pkg::DIV;
+        FPU_CMD_SQRT: fpu_op_code = fpnew_pkg::SQRT;
         // Добавьте сюда другие команды по мере необходимости
-        default: fpu_op_code = fp_pkg::FP_ADD;
+        default: fpu_op_code = fpnew_pkg::ADD;
     endcase
 end
 fpnew_top #(
@@ -543,10 +543,10 @@ fpnew_top #(
 
     .op_i(fpu_op_code),
     .op_mod_i(0),
-    .src_fmt_i(fp_pkg::FMT_S),
-    .dst_fmt_i(fp_pkg::FMT_S),
-    .int_fmt_i(fp_pkg::INT_W),
-    .rnd_mode_i(exu_queue.fpu_rm),
+    .src_fmt_i(fpnew_pkg::FP32 ),
+    .dst_fmt_i(fpnew_pkg::FP32 ),
+    .int_fmt_i(fpnew_pkg::INT32),
+    .rnd_mode_i(fpnew_pkg::RNE),
     .operands_i({fprf2exu_rs3_data_i, fprf2exu_rs2_data_i, fprf2exu_rs1_data_i}),
     .in_valid_i(fpu_start_req),
     .out_ready_i(fpu_ready_for_req),

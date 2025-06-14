@@ -9,7 +9,7 @@
 package fp_pkg;
 
     // FPU operations
-    typedef enum logic [4:0] {
+    typedef enum logic [3:0] {
         FP_ADD,
         FP_SUB,
         FP_MUL,
