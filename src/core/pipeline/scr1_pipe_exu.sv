@@ -222,17 +222,20 @@ logic                               exu_queue_vd_next;
 
 //FPU
 `ifdef SCR1_RVF_EXT
-    // FSM для FPU
-    typedef enum logic {FPU_IDLE, FPU_BUSY} fpu_state_e;
-    fpu_state_e fpu_state_ff, fpu_state_next;
+// FPU Interface
+logic                        exu2fpu_req_o;         // Запрос к FPU
+fpnew_pkg::operation_e       exu2fpu_op_o;          // Операция FPU
+logic                        exu2fpu_op_mod_o;       // Модификатор операции
+fpnew_pkg::fp_format_e       exu2fpu_src_fmt_o;      // Исходный формат
+fpnew_pkg::fp_format_e       exu2fpu_dst_fmt_o;      // Целевой формат
+fpnew_pkg::roundmode_e       exu2fpu_rnd_mode_o;     // Режим округления
+logic [2:0][`SCR1_XLEN-1:0]  exu2fpu_operands_o;     // Операнды
+logic [`SCR1_XLEN-1:0]       fpu2exu_result_i;       // Результат FPU
+logic [4:0]                  fpu2exu_status_i;       // Статус FPU
+logic                        fpu2exu_valid_i;        // Результат валиден
+logic                        fpu2exu_ready_i;        // FPU готов принять запрос
 
-    logic fpu_req;
-    logic fpu_start_req;
-    logic fpu_ready_for_req;
-    logic fpu_result_valid;
-    logic [`SCR1_XLEN-1:0] fpu_result;
-    logic [4:0] fpu_status_flags;
-    fpnew_pkg::operation_e fpu_op_code;
+
 `endif
 
 // IALU signals
@@ -499,61 +502,76 @@ scr1_pipe_ialu i_ialu(
 
 
 `ifdef SCR1_RVF_EXT
-//------------------------------------------------------------------------------
-// Floating-Point Unit (FPU)
-//------------------------------------------------------------------------------
-assign fpu_req = exu_queue_vd & exu_queue.is_fp_op & (exu_queue.fpu_cmd != FPU_CMD_NONE);
+// FSM для FPU
+typedef enum logic [1:0] {
+    FPU_IDLE,
+    FPU_BUSY,
+    FPU_DONE
+} fpu_state_e;
 
-// FSM для управления многотактовым FPU
-always_ff @(posedge clk, negedge rst_n) begin
+fpu_state_e fpu_state_ff, fpu_state_next;
+
+always_ff @(posedge clk or negedge rst_n) begin
     if (~rst_n) fpu_state_ff <= FPU_IDLE;
     else fpu_state_ff <= fpu_state_next;
 end
 
 always_comb begin
     fpu_state_next = fpu_state_ff;
-    case(fpu_state_ff)
-        FPU_IDLE: if (fpu_req && fpu_ready_for_req) fpu_state_next = FPU_BUSY;
-        FPU_BUSY: if (fpu_result_valid) fpu_state_next = FPU_IDLE;
+    case (fpu_state_ff)
+        FPU_IDLE: if (exu_queue_vd & exu_queue.is_fp_op & fpu2exu_ready_i)
+                    fpu_state_next = FPU_BUSY;
+        FPU_BUSY: if (fpu2exu_valid_i)
+                    fpu_state_next = FPU_DONE;
+        FPU_DONE: fpu_state_next = FPU_IDLE;
     endcase
 end
 
-// Запускаем FPU только когда он готов и мы в состоянии IDLE
-assign fpu_start_req = (fpu_state_ff == FPU_IDLE) && fpu_req && fpu_ready_for_req;
+// Управляющие сигналы
+assign exu2fpu_req_o = (fpu_state_ff == FPU_IDLE) & exu_queue_vd & exu_queue.is_fp_op;
 
-// Логика преобразования нашей команды в команду FPNew
+assign exu2fpu_operands_o = {fprf2exu_rs3_data_i, fprf2exu_rs2_data_i, fprf2exu_rs1_data_i};
+assign exu2fpu_src_fmt_o = fpnew_pkg::FP32;
+assign exu2fpu_dst_fmt_o = fpnew_pkg::FP32;
+assign exu2fpu_rnd_mode_o = fpnew_pkg::RNE;
+
 always_comb begin
-    fpu_op_code = fpnew_pkg::ADD; // Значение по умолчанию
+    exu2fpu_op_o = fpnew_pkg::ADD; // Значение по умолчанию
     case (exu_queue.fpu_cmd)
-        FPU_CMD_ADD: fpu_op_code = fpnew_pkg::ADD;
-        FPU_CMD_SUB: fpu_op_code = fpnew_pkg::FNMSUB;
-        FPU_CMD_MUL: fpu_op_code = fpnew_pkg::MUL;
-        FPU_CMD_DIV: fpu_op_code = fpnew_pkg::DIV;
-        FPU_CMD_SQRT: fpu_op_code = fpnew_pkg::SQRT;
+        FPU_CMD_ADD: exu2fpu_op_o = fpnew_pkg::ADD;
+        FPU_CMD_SUB: exu2fpu_op_o = fpnew_pkg::FNMSUB;
+        FPU_CMD_MUL: exu2fpu_op_o = fpnew_pkg::MUL;
+        FPU_CMD_DIV: exu2fpu_op_o = fpnew_pkg::DIV;
+        FPU_CMD_SQRT: exu2fpu_op_o = fpnew_pkg::SQRT;
         // Добавьте сюда другие команды по мере необходимости
-        default: fpu_op_code = fpnew_pkg::ADD;
+        default: exu2fpu_op_o = fpnew_pkg::ADD;
     endcase
 end
 fpnew_top #(
-    .Features (fpnew_pkg::RV32F), // S - одинарная точность
-    .Implementation(fpnew_pkg::DEFAULT_NOREGS)
+    .Features       (fpnew_pkg::RV32F),
+    .Implementation (fpnew_pkg::DEFAULT_NOREGS),
+    .TagType        (logic)
 ) i_fpnew (
-    .clk_i(clk),
-    .rst_ni(rst_n),
-
-    .op_i(fpu_op_code),
-    .op_mod_i(0),
-    .src_fmt_i(fpnew_pkg::FP32 ),
-    .dst_fmt_i(fpnew_pkg::FP32 ),
-    .int_fmt_i(fpnew_pkg::INT32),
-    .rnd_mode_i(fpnew_pkg::RNE),
-    .operands_i({fprf2exu_rs3_data_i, fprf2exu_rs2_data_i, fprf2exu_rs1_data_i}),
-    .in_valid_i(fpu_start_req),
-    .out_ready_i(fpu_ready_for_req),
-
-    .result_o(fpu_result),
-    .status_o(fpu_status_flags),
-    .out_valid_o(fpu_result_valid)
+    .clk_i          (clk),
+    .rst_ni         (rst_n),
+    .operands_i     (exu2fpu_operands_o),
+    .rnd_mode_i     (exu2fpu_rnd_mode_o),
+    .op_i           (exu2fpu_op_o),
+    .op_mod_i       (1'b0),
+    .src_fmt_i      (exu2fpu_src_fmt_o),
+    .dst_fmt_i      (exu2fpu_dst_fmt_o),
+    .int_fmt_i      (),
+    .vectorial_op_i (1'b0),
+    .tag_i          (1'b0),
+    .in_valid_i     (exu2fpu_req_o),
+    .in_ready_o     (fpu2exu_ready_i),
+    .flush_i        (1'b0),
+    .result_o       (fpu2exu_result_i),
+    .status_o       (fpu2exu_status_i),
+    .tag_o          (),
+    .out_valid_o    (fpu2exu_valid_i),
+    .out_ready_i    (1'b1),
+    .busy_o         ()
 );
 // Инстанс FPNew
 // Вам нужно будет убедиться, что путь к fpnew_top.sv и fpnew_pkg.sv
@@ -988,21 +1006,16 @@ end
 
 
 `ifdef SCR1_RVF_EXT
-// Запросы на чтение из FPRF
+// Чтение из FPRF
 assign exu2fprf_rs1_addr_o = exu_queue.is_fp_op ? exu_queue.rs1_addr : '0;
 assign exu2fprf_rs2_addr_o = exu_queue.is_fp_op ? exu_queue.rs2_addr : '0;
 assign exu2fprf_rs3_addr_o = exu_queue.is_fp_op ? exu_queue.rs3_addr : '0;
 
-// Запрос на запись в FPRF
-assign exu2fprf_w_req_o = ((exu_queue.rd_wb_sel == SCR1_RD_WB_FPU && fpu_result_valid) ||
-                         (exu_queue.lsu_cmd == LSU_CMD_FLW && lsu_rdy))
-                         & exu_queue_vd & ~exu_exc_req;
-
+// Запись в FPRF
+assign exu2fprf_w_req_o = (fpu_state_ff == FPU_DONE) |
+                         (exu_queue.lsu_cmd == LSU_CMD_FLW & lsu_rdy);
 assign exu2fprf_rd_addr_o = exu_queue.rd_addr;
-assign exu2fprf_rd_data_o = (exu_queue.rd_wb_sel == SCR1_RD_WB_FPU) ? fpu_result : lsu_l_data;
-
-// Передача флагов в CSR
-assign exu2csr_fpu_flags_o = fpu_result_valid ? fpu_status_flags : 5'b0;
+assign exu2fprf_rd_data_o = (fpu_state_ff == FPU_DONE) ? fpu2exu_result_i : lsu_l_data;
 `endif
 //------------------------------------------------------------------------------
 // EXU <-> CSR interface
