@@ -263,6 +263,9 @@ hello: | $(bld_dir)
 clean_hex: | $(bld_dir)
 	$(RM) $(bld_dir)/*.hex
 
+mips_custom_tests: | $(bld_dir)
+	$(MAKE) -C $(tst_dir)/mips_custom_tests
+
 $(bld_dir):
 	mkdir -p $(bld_dir)
 
