@@ -1,7 +1,15 @@
 ADD_ASM_MACRO ?= -D__ASSEMBLY__=1
 
-# Используем безопасные флаги оптимизации для совместимости с GCC 14+
-FLAGS = -O2 -fno-lto -fno-peephole2 $(ADD_FLAGS)
+# --- Выбираем флаги оптимизации в зависимости от системы ---
+ifeq ($(shell grep -q -e "Arch Linux" -e "SteamOS" /etc/os-release && echo YES),YES)
+    # Безопасные флаги для нового GCC на Arch
+    FLAGS = -O2 -fno-lto -fno-peephole2 $(ADD_FLAGS)
+else
+    # Старые, агрессивные флаги для Debian/WSL
+    FLAGS = -O3 -funroll-loops -fpeel-loops -fgcse-sm -fgcse-las $(ADD_FLAGS)
+endif
+# --- Конец блока ---
+
 FLAGS_STR = "$(FLAGS)"
 
 CFLAGS_COMMON = -static -std=gnu99 -fno-common -fno-builtin-printf -DTCM=$(TCM)
@@ -13,6 +21,7 @@ $(CFLAGS_ARCH) \
 -DFLAGS_STR=\"$(FLAGS_STR)\" \
 $(ADD_CFLAGS)
 
+# LDFLAGS = -L/usr/lib/picolibc/riscv64-unknown-elf/lib/rv32imac/ilp32 -L/usr/lib/gcc/riscv64-unknown-elf/13.2.0/rv32imac/ilp32 -nostartfiles -nostdlib -lc -lgcc -march=rv32$(ARCH)_zicsr_zifencei -mabi=$(ABI)
 LDFLAGS   = -L$(LIB_C_PATH) -L$(LIB_GCC_PATH) -nostartfiles -nostdlib -lc -lgcc -march=rv32$(ARCH)_zicsr_zifencei -mabi=$(ABI)
 
 ifeq (,$(findstring 0,$(TCM)))
@@ -23,13 +32,20 @@ ld_script ?= $(inc_dir)/link.ld
 asm_src   ?= crt.S
 endif
 
+# --- Подключаем syscalls_arch_fix.c ТОЛЬКО для Arch Linux / Steam Deck ---
+# Проверяем наличие файла /etc/os-release и ищем в нем "Arch Linux" или "SteamOS"
+ifeq ($(shell grep -q -e "Arch Linux" -e "SteamOS" /etc/os-release && echo YES),YES)
+    $(info [INFO] Arch Linux detected. Including syscalls_arch_fix.c)
+    c_src += syscalls_arch_fix.c
+endif
+# --- Конец блока ---
+
+
+#this is optional assembly files from project
 asm_src += $(asm_src_in_project)
 
 VPATH += $(src_dir) $(inc_dir) $(ADD_VPATH)
 incs  += -I$(src_dir) -I$(inc_dir) $(ADD_incs)
-
-# Добавляем общий файл с заглушками системных вызовов в список исходников
-c_src += syscalls.c
 
 c_objs   := $(addprefix $(bld_dir)/,$(patsubst %.c, %.o, $(c_src)))
 asm_objs := $(addprefix $(bld_dir)/,$(patsubst %.S, %.o, $(asm_src)))
