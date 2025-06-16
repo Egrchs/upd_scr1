@@ -1,53 +1,31 @@
 // File: sim/tests/common/syscalls.c
-// Универсальная версия, не зависящая от системных newlib/picolibc.
+// Универсальная версия для newlib и picolibc
 
-// Определяем базовые типы, чтобы не зависеть от <sys/types.h>
-typedef long int ptrdiff_t;
-typedef long unsigned int size_t;
-typedef int pid_t;
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <errno.h>
 
-// Определяем структуру stat, чтобы не зависеть от <sys/stat.h>
-struct stat {
-  unsigned long long  st_dev;
-  unsigned long long  st_ino;
-  unsigned int        st_mode;
-  unsigned int        st_nlink;
-  unsigned int        st_uid;
-  unsigned int        st_gid;
-  unsigned long long  st_rdev;
-  unsigned long long  __pad1;
-  long long           st_size;
-  int                 st_blksize;
-  int                 __pad2;
-  long long           st_blocks;
-  long long           st_atime;
-  long long           st_atime_nsec;
-  long long           st_mtime;
-  long long           st_mtime_nsec;
-  long long           st_ctime;
-  long long           st_ctime_nsec;
-  unsigned int        __unused4;
-  unsigned int        __unused5;
-};
-#define S_IFCHR 0020000
+// Для picolibc, errno объявлен как thread_local.
+// Чтобы избежать конфликтов, мы проверяем, не определен ли он уже.
+// Если он не определен (как в старой newlib), мы его объявляем.
+#ifndef errno
+extern int errno;
+#endif
 
 // Указатель на конец кучи. _end определяется в linker-скрипте.
-// Мы объявляем его как weak, чтобы не конфликтовать, если он уже где-то есть.
-__attribute__((weak)) char _end = 0;
-static char *heap_end = &_end;
+extern char _end[];
+static char *heap_end = _end;
 
 /*
  * _sbrk - системный вызов для выделения памяти. Используется malloc.
  */
 void * _sbrk(int incr) {
     char *prev_heap_end;
-    if (heap_end == &_end) { // Проверяем, что _end не 0
-        prev_heap_end = heap_end;
-        heap_end += incr;
-    } else {
-        // Если _end не определен, возвращаем ошибку
-        return (void *) -1;
+    if (heap_end == 0) {
+        heap_end = _end;
     }
+    prev_heap_end = heap_end;
+    heap_end += incr;
     return (void *) prev_heap_end;
 }
 
@@ -99,27 +77,22 @@ int _isatty(int file) { return 1; }
 int _lseek(int file, int ptr, int dir) { return 0; }
 int _read(int file, char *ptr, int len) { return 0; }
 
-// Объявляем _exit и abort, чтобы компилятор не жаловался.
 void _exit(int status);
 void abort(void);
 
 void _exit(int status) {
-    while(1); // Бесконечный цикл, чтобы остановить симуляцию
+    while(1);
 }
 
 void abort(void) {
     _exit(1);
 }
 
-// Заглушка для kill
 int _kill(pid_t pid, int sig) {
+    errno = EINVAL;
     return -1;
 }
 
-// Заглушка для getpid
 pid_t _getpid(void) {
     return 1;
 }
-
-// Заглушка для errno (не используем extern, чтобы избежать конфликтов)
-int errno = 0;
