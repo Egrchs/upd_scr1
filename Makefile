@@ -1,9 +1,3 @@
-#------------------------------------------------------------------------------
-# Makefile for SCR1
-# Универсальная версия, адаптированная для различных систем,
-# включая Debian/Ubuntu, Arch Linux (Steam Deck) и WSL.
-#------------------------------------------------------------------------------
-
 # ======================================================================
 #   ОПРЕДЕЛЕНИЕ СИСТЕМЫ И ПУТЕЙ
 # ======================================================================
@@ -14,27 +8,43 @@ IS_ARCH_BASED := $(shell (grep -q -i -e "ID_LIKE=arch" -e "ID=arch" /etc/os-rele
 export IS_ARCH_BASED
 
 # --- 2. Автоматическое определение префикса кросс-компилятора ---
-detected_gcc_cmd := $(firstword $(shell command -v riscv64-unknown-elf-gcc 2>/dev/null) $(shell command -v riscv64-elf-gcc 2>/dev/null))
+ifeq ($(IS_ARCH_BASED), yes)
+    # На Arch префикс обычно 'riscv64-elf'
+    GCC_PREFIX ?= riscv64-elf
+else
+    # На Debian/Ubuntu 'riscv64-unknown-elf'
+    GCC_PREFIX ?= riscv64-unknown-elf
+endif
+
+# Проверяем, что компилятор с таким префиксом существует
+detected_gcc_cmd := $(shell command -v $(GCC_PREFIX)-gcc 2>/dev/null)
 ifeq ($(detected_gcc_cmd),)
-  $(error "ERROR: Could not find 'riscv64-unknown-elf-gcc' or 'riscv64-elf-gcc' in your PATH. Please ensure the RISC-V toolchain is installed.")
+  $(error "ERROR: Could not find '$(GCC_PREFIX)-gcc' in your PATH. Please ensure the RISC-V toolchain is installed.")
 endif
+export CROSS_PREFIX := $(GCC_PREFIX)-
+$(info [INFO] Using toolchain prefix: '$(CROSS_PREFIX)')
 
-export CROSS_PREFIX := $(patsubst %gcc,%,$(notdir $(detected_gcc_cmd)))
-$(info [INFO] Detected toolchain prefix: '$(CROSS_PREFIX)')
+# --- 3. Поиск путей в зависимости от системы ---
+ifeq ($(IS_ARCH_BASED), yes)
+    # --- ЛОГИКА ДЛЯ ARCH LINUX / STEAM DECK ---
+    $(info [INFO] Using Arch Linux specific paths.)
+    INCLUDE_PATH ?= /usr/$(GCC_PREFIX)/include
+    LIB_C_PATH   ?= /usr/$(GCC_PREFIX)/lib/rv32imac/ilp32
+    # ИСПРАВЛЕНИЕ ЗДЕСЬ: ищем директорию по префиксу без дефиса
+    LIB_GCC_PATH ?= $(shell find /usr/lib/gcc/$(GCC_PREFIX) -name "libgcc.a" -path "*/rv32imac/ilp32/*" | head -n 1 | xargs -r dirname)
 
-# --- 3. Умный поиск путей к библиотекам и заголовкам ---
-# Самый надежный способ: ищем сам файл stdio.h и берем его директорию.
-# Это позволяет избежать путаницы с внутренними include-директориями GCC.
-INCLUDE_PATH := $(shell find /usr/include /usr/lib -name stdio.h -path '*/riscv64*/*' 2>/dev/null | head -n 1 | xargs -r dirname)
-
-# Ищем библиотеки, указывая конкретную архитектуру в пути для надежности.
-LIB_C_PATH   := $(shell find /usr/lib -name libc.a -path '*/rv32imac/ilp32/*' 2>/dev/null | head -n 1 | xargs -r dirname)
-LIB_GCC_PATH := $(shell find /usr/lib/gcc -name libgcc.a -path '*/rv32imac/ilp32/*' 2>/dev/null | head -n 1 | xargs -r dirname)
-
+else
+    # --- ЛОГИКА ДЛЯ DEBIAN / UBUNTU / WSL ---
+    $(info [INFO] Using dpkg for Debian-based system.)
+    # Используем dpkg для надежного поиска.
+    INCLUDE_PATH := $(shell dpkg -L picolibc-riscv64-unknown-elf 2>/dev/null | grep '/include/string.h$$' | head -n 1 | xargs -r dirname)
+    LIB_C_PATH   := $(shell dpkg -L picolibc-riscv64-unknown-elf 2>/dev/null | grep '/rv32imac/ilp32/libc.a$$' | head -n 1 | xargs -r dirname)
+    LIB_GCC_PATH := $(shell dpkg -L gcc-riscv64-unknown-elf 2>/dev/null | grep '/rv32imac/ilp32/libgcc.a$$' | head -n 1 | xargs -r dirname)
+endif
 
 # --- 4. Проверка найденных путей ---
 ifeq ($(INCLUDE_PATH),)
-  $(error "ERROR: Could not find the RISC-V C library include path (where stdio.h lives). Please ensure the toolchain's C library (newlib/picolibc) is installed correctly.")
+  $(error "ERROR: Could not find riscv64 include path. Please ensure toolchain and its C library (newlib/picolibc) are installed.")
 endif
 ifeq ($(LIB_C_PATH),)
   $(error "ERROR: Could not find 32-bit libc.a library path (rv32imac/ilp32). Please ensure toolchain is installed.")
@@ -48,52 +58,6 @@ $(info [INFO] Found libc path:    $(LIB_C_PATH))
 $(info [INFO] Found libgcc path:  $(LIB_GCC_PATH))
 
 # --- 5. Экспорт переменных тулчейна ---
-export RISCV_GCC     := $(CROSS_PREFIX)gcc -I$(INCLUDE_PATH)
-export RISCV_OBJDUMP ?= $(CROSS_PREFIX)objdump -D
-export RISCV_OBJCOPY ?= $(CROSS_PREFIX)objcopy -O verilog
-export RISCV_READELF ?= $(CROSS_PREFIX)readelf -s
-export LIB_C_PATH
-export LIB_GCC_PATH
-
-# --- 4. Проверка найденных путей ---
-ifeq ($(INCLUDE_PATH),)
-  $(error "ERROR: Could not find riscv64 include path. Please ensure toolchain is installed.")
-endif
-ifeq ($(LIB_C_PATH),)
-  $(error "ERROR: Could not find 32-bit libc.a library path (rv32imac/ilp32). Please ensure toolchain is installed.")
-endif
-ifeq ($(LIB_GCC_PATH),)
-  $(error "ERROR: Could not find 32-bit gcc library path (rv32imac/ilp32). Please ensure toolchain is installed.")
-endif
-
-$(info [INFO] Found include path: $(INCLUDE_PATH))
-$(info [INFO] Found libc path:    $(LIB_C_PATH))
-$(info [INFO] Found libgcc path:  $(LIB_GCC_PATH))
-
-# --- 5. Экспорт переменных тулчейна ---
-export RISCV_GCC     := $(CROSS_PREFIX)gcc -I$(INCLUDE_PATH)
-export RISCV_OBJDUMP ?= $(CROSS_PREFIX)objdump -D
-export RISCV_OBJCOPY ?= $(CROSS_PREFIX)objcopy -O verilog
-export RISCV_READELF ?= $(CROSS_PREFIX)readelf -s
-export LIB_C_PATH
-export LIB_GCC_PATH
-
-# --- 3. Проверка найденных путей ---
-ifeq ($(INCLUDE_PATH),)
-  $(error "ERROR: Could not find riscv64 include path. Please ensure toolchain is installed.")
-endif
-ifeq ($(LIB_C_PATH),)
-  $(error "ERROR: Could not find 32-bit libc.a library path (rv32imac/ilp32). Please ensure toolchain is installed.")
-endif
-ifeq ($(LIB_GCC_PATH),)
-  $(error "ERROR: Could not find 32-bit gcc library path (rv32imac/ilp32). Please ensure toolchain is installed.")
-endif
-
-$(info [INFO] Found include path: $(INCLUDE_PATH))
-$(info [INFO] Found libc path:    $(LIB_C_PATH))
-$(info [INFO] Found libgcc path:  $(LIB_GCC_PATH))
-
-# --- 4. Экспорт переменных тулчейна ---
 export RISCV_GCC     := $(CROSS_PREFIX)gcc -I$(INCLUDE_PATH)
 export RISCV_OBJDUMP ?= $(CROSS_PREFIX)objdump -D
 export RISCV_OBJCOPY ?= $(CROSS_PREFIX)objcopy -O verilog
