@@ -245,7 +245,7 @@ endif
         run_vcs_compile run_modelsim_compile run_ncsim_compile \
         run_verilator_compile run_verilator_wf_compile
 
-default: clean_test_list run_verilator
+default: clean clean_test_list run_modelsim
 
 all: tests
 
