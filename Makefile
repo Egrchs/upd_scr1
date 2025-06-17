@@ -198,7 +198,7 @@ ifeq ($(current_goal),)
                      run_verilator_compile run_verilator_wf_compile
     current_primary_goal := $(firstword $(filter-out compile, $(filter $(PRIMARY_GOALS), $(MAKECMDGOALS))))
     ifeq ($(current_primary_goal),)
-        current_primary_goal := run_verilator
+        current_primary_goal := run_modelsim
     endif
     current_goal := $(current_primary_goal:run_%=%)
 endif
