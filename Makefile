@@ -1,184 +1,166 @@
 #------------------------------------------------------------------------------
 # Makefile for SCR1
+# Универсальная версия, адаптированная для различных систем,
+# включая Debian/Ubuntu, Arch Linux (Steam Deck) и WSL.
 #------------------------------------------------------------------------------
 
-# --- ОПРЕДЕЛЕНИЕ СРЕДЫ И ПУТЕЙ ---
-# Проверяем, запущена ли сборка на Steam Deck (SteamOS)
-IS_STEAM_DECK := $(shell (grep -q -i 'ID=steamos' /etc/os-release || uname -n | grep -q -i 'steamdeck') && echo "yes")
+# ======================================================================
+#   ОПРЕДЕЛЕНИЕ СИСТЕМЫ И ПУТЕЙ (ВЕРСИЯ ИЗ 'steam_deck_make')
+#   Этот блок более надежен, так как автоматически определяет префикс
+#   и использует разные методы поиска путей для разных систем.
+# ======================================================================
 
-ifeq ($(IS_STEAM_DECK), yes)
-    # --- ЛОГИКА ДЛЯ STEAM DECK (ARCH LINUX) ---
-    $(info Detected Steam Deck environment.)
+# --- 1. Определяем тип ОС ---
+# IS_ARCH_BASED будет 'yes' для Arch Linux, Manjaro, SteamOS и т.д.
+IS_ARCH_BASED := $(shell (grep -q -i -e "ID_LIKE=arch" -e "ID=arch" /etc/os-release 2>/dev/null || uname -n | grep -q -i 'steamdeck') && echo "yes")
+export IS_ARCH_BASED
 
-    # Устанавливаем префикс тулчейна для Steam Deck
-    export CROSS_PREFIX := riscv64-elf-
-    $(info Using toolchain prefix: $(CROSS_PREFIX))
+# --- 2. Автоматическое определение префикса кросс-компилятора ---
+ifeq ($(IS_ARCH_BASED), yes)
+    # На Arch префикс обычно 'riscv64-elf'
+    GCC_PREFIX ?= riscv64-elf
+else
+    # На Debian/Ubuntu 'riscv64-unknown-elf'
+    GCC_PREFIX ?= riscv64-unknown-elf
+endif
 
-    # На SteamOS нет dpkg, поэтому мы не можем использовать старый метод.
-    # Используем предполагаемые пути. Пользователю может потребоваться их скорректировать.
-    # Вы можете найти реальные пути с помощью команды: `pacman -Ql picolibc-riscv64-unknown-elf`
-    # и `pacman -Ql riscv64-elf-gcc`
-    INCLUDE_PATH ?= /usr/riscv64-elf/include
-    LIB_C_PATH   ?= /usr/riscv64-elf/lib/rv32imac/ilp32
-    LIB_GCC_PATH ?= /usr/lib/gcc/riscv64-elf/14.1.0/rv32imac/ilp32 # Версию GCC (14.1.0) возможно нужно будет обновить
+# Проверяем, что компилятор с таким префиксом существует
+detected_gcc_cmd := $(shell command -v $(GCC_PREFIX)-gcc 2>/dev/null)
+ifeq ($(detected_gcc_cmd),)
+  $(error "ERROR: Could not find '$(GCC_PREFIX)-gcc' in your PATH. Please ensure the RISC-V toolchain is installed.")
+endif
+export CROSS_PREFIX := $(GCC_PREFIX)-
+$(info [INFO] Using toolchain prefix: '$(CROSS_PREFIX)')
 
-    $(info NOTE: Using assumed library paths for Steam Deck. If build fails, please verify these paths.)
-    $(info      INCLUDE_PATH: $(INCLUDE_PATH))
-    $(info      LIB_C_PATH:   $(LIB_C_PATH))
-    $(info      LIB_GCC_PATH: $(LIB_GCC_PATH))
+# --- 3. Поиск путей в зависимости от системы ---
+ifeq ($(IS_ARCH_BASED), yes)
+    # --- ЛОГИКА ДЛЯ ARCH LINUX / STEAM DECK ---
+    $(info [INFO] Using Arch Linux specific paths.)
+    INCLUDE_PATH ?= /usr/$(GCC_PREFIX)/include
+    LIB_C_PATH   ?= /usr/$(GCC_PREFIX)/lib/rv32imac/ilp32
+    LIB_GCC_PATH ?= $(shell find /usr/lib/gcc/$(GCC_PREFIX) -name "libgcc.a" -path "*/rv32imac/ilp32/*" | head -n 1 | xargs -r dirname)
 
 else
-    # --- СТАНДАРТНАЯ ЛОГИКА ДЛЯ DEBIAN/UBUNTU ---
-    $(info Detected standard Debian-based environment.)
-
-    # Устанавливаем префикс тулчейна по умолчанию
-    export CROSS_PREFIX  ?= riscv64-unknown-elf-
-    $(info Using toolchain prefix: $(CROSS_PREFIX))
-
-    # Используем shell-команды для поиска путей через dpkg.
+    # --- ЛОГИКА ДЛЯ DEBIAN / UBUNTU / WSL ---
+    $(info [INFO] Using dpkg for Debian-based system.)
+    # Используем dpkg для надежного поиска, как в старой версии.
     INCLUDE_PATH := $(shell dpkg -L picolibc-riscv64-unknown-elf 2>/dev/null | grep '/include/string.h$$' | head -n 1 | xargs -r dirname)
     LIB_C_PATH   := $(shell dpkg -L picolibc-riscv64-unknown-elf 2>/dev/null | grep '/rv32imac/ilp32/libc.a$$' | head -n 1 | xargs -r dirname)
     LIB_GCC_PATH := $(shell dpkg -L gcc-riscv64-unknown-elf 2>/dev/null | grep '/rv32imac/ilp32/libgcc.a$$' | head -n 1 | xargs -r dirname)
-
 endif
 
-# Проверяем, что все пути были найдены. Если нет - останавливаемся с ошибкой.
+# --- 4. Проверка найденных путей ---
 ifeq ($(INCLUDE_PATH),)
-  $(error "ERROR: Could not find picolibc include path. Please install the required packages for your system (e.g., picolibc-riscv64-unknown-elf).")
+  $(error "ERROR: Could not find riscv64 include path. Please ensure toolchain and its C library (newlib/picolibc) are installed.")
 endif
 ifeq ($(LIB_C_PATH),)
-  $(error "ERROR: Could not find 32-bit picolibc library path. Please install the required packages for your system.")
+  $(error "ERROR: Could not find 32-bit libc.a library path (rv32imac/ilp32). Please ensure toolchain is installed.")
 endif
 ifeq ($(LIB_GCC_PATH),)
-  $(error "ERROR: Could not find 32-bit gcc library path. Please install the required packages for your system (e.g., gcc-riscv64-unknown-elf).")
+  $(error "ERROR: Could not find 32-bit gcc library path (rv32imac/ilp32). Please ensure toolchain is installed.")
 endif
 
-# Экспортируем переменные, чтобы они были доступны в дочерних Make-файлах
+$(info [INFO] Found include path: $(INCLUDE_PATH))
+$(info [INFO] Found libc path:    $(LIB_C_PATH))
+$(info [INFO] Found libgcc path:  $(LIB_GCC_PATH))
+
+# --- 5. Экспорт переменных тулчейна (единый, чистый блок) ---
+export RISCV_GCC     := $(CROSS_PREFIX)gcc -I$(INCLUDE_PATH)
+export RISCV_OBJDUMP ?= $(CROSS_PREFIX)objdump -D
+export RISCV_OBJCOPY ?= $(CROSS_PREFIX)objcopy -O verilog
+export RISCV_READELF ?= $(CROSS_PREFIX)readelf -s
 export LIB_C_PATH
 export LIB_GCC_PATH
+
+# ======================================================================
+#   ОПРЕДЕЛЕНИЕ СРЕДЫ И СИМУЛЯТОРОВ
 # ======================================================================
 
-# Detect WSL and set proper executables
 ifeq ($(shell uname -r | grep -i microsoft),)
-    # Regular Linux
     $(info Detected regular Linux environment, using non-.exe commands)
     VLIB     := vlib
     VMAP     := vmap
     VLOG     := vlog
     MODELSIM := vsim
 else
-    # WSL environment
     $(info Detected WSL environment, using .exe commands)
     VLIB     := vlib.exe
     VMAP     := vmap.exe
     VLOG     := vlog.exe
     MODELSIM := vsim.exe
 endif
+export VLIB VMAP VLOG MODELSIM
 
-# Export these variables so they're available in sub-makes
-export VLIB
-export VMAP
-export VLOG
-export MODELSIM
+SIM_BUILD_OPTS ?=
+ifneq ($(shell uname -r | grep -i microsoft),)
+	ifeq ($(findstring modelsim,$(MAKECMDGOALS)),modelsim)
+		SIM_BUILD_OPTS += +define+USE_WSL_WRAPPER
+    endif
+endif
+
+# ======================================================================
+#   ПАРАМЕТРЫ СБОРКИ
+# ======================================================================
 
 GUI ?= 0
-
-# PARAMETERS
-
-# CFG = <MAX, BASE, MIN, CUSTOM>
-# BUS = <AHB, AXI>
-
 export CFG      ?= MAX
 export BUS      ?= AHB
+TRACE ?= 0
 
 ifeq ($(CFG), MAX)
-# Predefined configuration SCR1_CFG_RV32IMC_MAX
     override ARCH         := IMC
     override VECT_IRQ     := 1
     override IPIC         := 1
     override TCM          := 1
     override SIM_CFG_DEF  := SCR1_CFG_RV32IMC_MAX
+else ifeq ($(CFG), BASE)
+    override ARCH         := IC
+    override VECT_IRQ     := 1
+    override IPIC         := 1
+    override TCM          := 1
+    override SIM_CFG_DEF  := SCR1_CFG_RV32IC_BASE
+else ifeq ($(CFG), MIN)
+    override ARCH         := EC
+    override VECT_IRQ     := 0
+    override IPIC         := 0
+    override TCM          := 1
+    override SIM_CFG_DEF  := SCR1_CFG_RV32EC_MIN
 else
-    ifeq ($(CFG), BASE)
-    # Predefined configuration SCR1_CFG_RV32IC_BASE
-        override ARCH         := IC
-        override VECT_IRQ     := 1
-        override IPIC         := 1
-        override TCM          := 1
-        override SIM_CFG_DEF  := SCR1_CFG_RV32IC_BASE
-    else
-        ifeq ($(CFG), MIN)
-        # Predefined configuration SCR1_CFG_RV32EC_MIN
-            override ARCH         := EC
-            override VECT_IRQ     := 0
-            override IPIC         := 0
-            override TCM          := 1
-            override SIM_CFG_DEF  := SCR1_CFG_RV32EC_MIN
-        else
-        # CUSTOM configuration. Parameters can be overwritten
-            # These options are for compiling tests only. Set the corresponding RTL parameters manually in the file scr1_arch_description.svh.
-            # ARCH = <IMC, IC, IM, I, EMC, EM, EC, E>
-            # VECT_IRQ = <0, 1>
-            # IPIC = <0, 1>
-            # TCM = <0, 1>
-            ARCH      ?= IMC
-            VECT_IRQ  ?= 0
-            IPIC      ?= 0
-            TCM       ?= 0
-            SIM_CFG_DEF  = SCR1_CFG_$(CFG)
-        endif
-    endif
+    ARCH      ?= IMC
+    VECT_IRQ  ?= 0
+    IPIC      ?= 0
+    TCM       ?= 0
+    SIM_CFG_DEF  = SCR1_CFG_$(CFG)
 endif
-
-# export all overrided variables
-export ARCH
-export VECT_IRQ
-export IPIC
-export TCM
-export SIM_CFG_DEF
+export ARCH VECT_IRQ IPIC TCM SIM_CFG_DEF
 
 ARCH_lowercase = $(shell echo $(ARCH) | tr A-Z a-z)
 BUS_lowercase  = $(shell echo $(BUS)  | tr A-Z a-z)
-
 ifeq ($(ARCH_lowercase),)
     ARCH_tmp = imc
 else
     ARCH_tmp :=
-
-    # 1. Базовая архитектура (I или E)
     ifneq (,$(findstring e,$(ARCH_lowercase)))
         ARCH_tmp   := e
         EXT_CFLAGS += -D__RVE_EXT
     else
         ARCH_tmp   := i
     endif
-
-    # 2. Расширение M (Integer Multiplication and Division)
     ifneq (,$(findstring m,$(ARCH_lowercase)))
         ARCH_tmp   := $(ARCH_tmp)m
     endif
-
-    # 3. Расширение F (Single-Precision Floating-Point)
     ifneq (,$(findstring f,$(ARCH_lowercase)))
         ARCH_tmp   := $(ARCH_tmp)f
     endif
-
-    # 4. Расширение C (Compressed Instructions)
     ifneq (,$(findstring c,$(ARCH_lowercase)))
         ARCH_tmp   := $(ARCH_tmp)c
         EXT_CFLAGS += -D__RVC_EXT
     endif
-
-    # 5. Расширение B (Bit Manipulation)
     ifneq (,$(findstring b,$(ARCH_lowercase)))
         ARCH_tmp   := $(ARCH_tmp)b
     endif
 endif
-
 override ARCH=$(ARCH_tmp)
-
-# Use this parameter to enable tracelog
-TRACE ?= 0
 
 ifeq ($(TRACE), 1)
     export SIM_TRACE_DEF = SCR1_TRACE_LOG_EN
@@ -186,57 +168,41 @@ else
     export SIM_TRACE_DEF = SCR1_TRACE_LOG_DIS
 endif
 
-
-# Use this parameter to pass additional options for simulation build command
-SIM_BUILD_OPTS ?=
-
-ifneq ($(shell uname -r | grep -i microsoft),)
-# Мы находимся в среде WSL
-	ifeq ($(findstring modelsim,$(MAKECMDGOALS)),modelsim)
-        # И цель запуска содержит "modelsim"
-		SIM_BUILD_OPTS += +define+USE_WSL_WRAPPER
-    endif
-endif
-
-# Use this parameter to set the list of tests to run
-# TARGETS = <riscv_isa, riscv_compliance, riscv_arch, coremark, dhrystone21, hello, isr_sample>
-export TARGETS :=
-
-
 export XLEN  ?= 32
 export ABI   ?= ilp32
-# Testbench memory delay patterns\
-  (FFFFFFFF - no delay, 00000000 - random delay, 00000001 - max delay)
 imem_pattern ?= FFFFFFFF
 dmem_pattern ?= FFFFFFFF
-
 VCS_OPTS       ?=
 MODELSIM_OPTS  ?=
 NCSIM_OPTS     ?=
 VERILATOR_OPTS ?=
 
-# --- ЛОГИКА ОПРЕДЕЛЕНИЯ ПУТИ СБОРКИ ---
-
-# Список всех "основных" целей, которые определяют тип симулятора
-PRIMARY_GOALS := run_vcs run_modelsim run_ncsim run_verilator run_verilator_wf \
-                 run_vcs_compile run_modelsim_compile run_ncsim_compile \
-                 run_verilator_compile run_verilator_wf_compile
-
-# Находим первую из основных целей, указанную в командной строке.
-# Игнорируем 'compile', так как это мета-цель и не должна влиять на путь.
-current_primary_goal := $(firstword $(filter-out compile, $(filter $(PRIMARY_GOALS), $(MAKECMDGOALS))))
-
-# Если основная цель не указана (например, `make` или `make compile`), используем verilator по умолчанию.
-ifeq ($(current_primary_goal),)
-    current_primary_goal := run_verilatorAAZZ
+GCCVERSIONGT7 := $(shell expr `$(detected_gcc_cmd) -dumpfullversion | cut -f1 -d'.'` \> 7)
+ifeq "$(GCCVERSIONGT7)" "1"
+    ifneq (,$(findstring f,$(ARCH_lowercase)))
+        override ABI := ilp32f
+    else ifneq (,$(findstring e,$(ARCH_lowercase)))
+        override ABI := ilp32e
+    endif
 endif
 
-# Преобразуем полную цель в короткое имя для пути
-current_goal := $(current_primary_goal:run_%=%)
+# ======================================================================
+#   ОПРЕДЕЛЕНИЕ ПУТЕЙ СБОРКИ И ЦЕЛЕЙ
+# ======================================================================
 
-# --- КОНЕЦ ЛОГИКИ ОПРЕДЕЛЕНИЯ ПУТИ ---
+# Логика определения пути сборки из 'steam_deck_make' - она чище.
+# Если current_goal не передан извне, вычисляем его сами.
+ifeq ($(current_goal),)
+    PRIMARY_GOALS := run_vcs run_modelsim run_ncsim run_verilator run_verilator_wf \
+                     run_vcs_compile run_modelsim_compile run_ncsim_compile \
+                     run_verilator_compile run_verilator_wf_compile
+    current_primary_goal := $(firstword $(filter-out compile, $(filter $(PRIMARY_GOALS), $(MAKECMDGOALS))))
+    ifeq ($(current_primary_goal),)
+        current_primary_goal := run_verilator
+    endif
+    current_goal := $(current_primary_goal:run_%=%)
+endif
 
-# Paths
 export root_dir := $(shell pwd)
 export tst_dir  := $(root_dir)/sim/tests
 export inc_dir  := $(tst_dir)/common
@@ -246,109 +212,75 @@ test_results := $(bld_dir)/test_results.txt
 test_info    := $(bld_dir)/test_info
 sim_results  := $(bld_dir)/sim_results.txt
 
-todo_list    := $(bld_dir)/todo.txt
-# Environment
-# Используем наш автоматически найденный путь к include
-export RISCV_GCC     := $(CROSS_PREFIX)gcc -I$(INCLUDE_PATH)
-export RISCV_OBJDUMP ?= $(CROSS_PREFIX)objdump -D
-export RISCV_OBJCOPY ?= $(CROSS_PREFIX)objcopy -O verilog
-export RISCV_READELF ?= $(CROSS_PREFIX)readelf -s
-#--
 ifneq (,$(findstring axi,$(BUS_lowercase)))
-export rtl_top_files := axi_top.files
-export rtl_tb_files  := axi_tb.files
-export top_module    := scr1_top_tb_axi
+    export rtl_top_files := axi_top.files
+    export rtl_tb_files  := axi_tb.files
+    export top_module    := scr1_top_tb_axi
 else
-export rtl_top_files := ahb_top.files
-export rtl_tb_files  := ahb_tb.files
-export top_module    := scr1_top_tb_ahb
+    export rtl_top_files := ahb_top.files
+    export rtl_tb_files  := ahb_tb.files
+    export top_module    := scr1_top_tb_ahb
 endif
 
-GCCVERSIONGT7 := $(shell expr `$(RISCV_GCC) -dumpfullversion | cut -f1 -d'.'` \> 7)
-ifeq "$(GCCVERSIONGT7)" "1"
-    # The 'F' extension dictates the ABI, so we check for it first.
-    ifneq (,$(findstring f,$(ARCH_lowercase)))
-        override ABI := ilp32f
-    else ifneq (,$(findstring e,$(ARCH_lowercase)))
-        override ABI := ilp32eAC
-    endif
-endif
-#--
+# --- Умное формирование списка тестов из 'steam_deck_make' ---
+ALL_TARGETS := riscv_arch isr_sample coremark dhrystone21 hello
 ifeq (,$(findstring e,$(ARCH_lowercase)))
-    # Comment this target if you don't want to run the riscv_isa
-    TARGETS += riscv_isa
-
-    # Comment this target if you don't want to run the riscv_compliance
-    TARGETS += riscv_compliance
+    ALL_TARGETS += riscv_isa riscv_compliance
 endif
+TARGETS ?= $(ALL_TARGETS)
+export TARGETS
 
-# Comment this target if you don't want to run the riscv_arch
-TARGETS += riscv_arch
-
-# Comment this target if you don't want to run the isr_sample
-TARGETS += isr_sample
-
-# Comment this target if you don't want to run the coremark
-TARGETS += coremark
-
-# Comment this target if you don't want to run the dhrystone
-TARGETS += dhrystone21
-
-# Comment this target if you don't want to run the hello test
-TARGETS += hello
-
-# When RVE extension is on, we want to exclude some tests, even if they are given from the command line
 ifneq (,$(findstring e,$(ARCH_lowercase)))
     excluded := riscv_isa riscv_compliance
     excluded := $(filter $(excluded), $(TARGETS))
     $(foreach test,$(excluded),$(warning Warning! $(test) test is not intended to run on an RVE extension, skipping it))
     override TARGETS := $(filter-out $(excluded), $(TARGETS))
 endif
-
 ifeq (,$(strip $(TARGETS)))
     $(error Error! No tests included, aborting)
 endif
 
-# Targets
-.PHONY: tests compile \
+.PHONY: all tests compile clean default \
         run_vcs run_modelsim run_ncsim run_verilator run_verilator_wf \
         run_vcs_compile run_modelsim_compile run_ncsim_compile \
         run_verilator_compile run_verilator_wf_compile
 
 default: clean_test_list run_verilator
 
-clean_test_list:
-	rm -f $(test_info)
+all: tests
 
-echo_out: tests
-	@echo "                          Test               | build | simulation " ;
-	@echo "$$(cat $(test_results))"
+clean_test_list:
+	$(RM) -f $(test_info)
 
 tests: $(TARGETS)
 
 $(test_info): clean_test_list clean_hex tests
 	cd $(bld_dir)
 
+# ======================================================================
+#   ЦЕЛИ ДЛЯ СБОРКИ ТЕСТОВ
+# ======================================================================
+
 isr_sample: | $(bld_dir)
-	$(MAKE) -C $(tst_dir)/isr_sample ARCH=$(ARCH) IPIC=$(IPIC) VECT_IRQ=$(VECT_IRQ) ABI=$(ABI)
+	$(MAKE) -C $(tst_dir)/isr_sample ARCH=$(ARCH) IPIC=$(IPIC) VECT_IRQ=$(VECT_IRQ) ABI=$(ABI) current_goal=$(current_goal)
 
 dhrystone21: | $(bld_dir)
-	$(MAKE) -C $(tst_dir)/benchmarks/dhrystone21 EXT_CFLAGS="$(EXT_CFLAGS)" ARCH=$(ARCH) ABI=$(ABI)
+	$(MAKE) -C $(tst_dir)/benchmarks/dhrystone21 EXT_CFLAGS="$(EXT_CFLAGS)" ARCH=$(ARCH) ABI=$(ABI) current_goal=$(current_goal)
 
 coremark: | $(bld_dir)
-	-$(MAKE) -C $(tst_dir)/benchmarks/coremark EXT_CFLAGS="$(EXT_CFLAGS)" ARCH=$(ARCH) ABI=$(ABI)
+	$(MAKE) -C $(tst_dir)/benchmarks/coremark EXT_CFLAGS="$(EXT_CFLAGS)" ARCH=$(ARCH) ABI=$(ABI) current_goal=$(current_goal)
 
 riscv_isa: | $(bld_dir)
-	$(MAKE) -C $(tst_dir)/riscv_isa ARCH=$(ARCH) ABI=$(ABI)
+	$(MAKE) -C $(tst_dir)/riscv_isa ARCH=$(ARCH) ABI=$(ABI) current_goal=$(current_goal)
 
 riscv_compliance: | $(bld_dir)
-	$(MAKE) -C $(tst_dir)/riscv_compliance ARCH=$(ARCH) ABI=$(ABI)
+	$(MAKE) -C $(tst_dir)/riscv_compliance ARCH=$(ARCH) ABI=$(ABI) current_goal=$(current_goal)
 
 riscv_arch: | $(bld_dir)
-	$(MAKE) -C $(tst_dir)/riscv_arch ARCH=$(ARCH) ABI=$(ABI)
+	$(MAKE) -C $(tst_dir)/riscv_arch ARCH=$(ARCH) ABI=$(ABI) current_goal=$(current_goal)
 
 hello: | $(bld_dir)
-	-$(MAKE) -C $(tst_dir)/hello EXT_CFLAGS="$(EXT_CFLAGS)" ARCH=$(ARCH) ABI=$(ABI)
+	$(MAKE) -C $(tst_dir)/hello EXT_CFLAGS="$(EXT_CFLAGS)" ARCH=$(ARCH) ABI=$(ABI) current_goal=$(current_goal)
 
 clean_hex: | $(bld_dir)
 	$(RM) $(bld_dir)/*.hex
@@ -359,11 +291,11 @@ mips_custom_tests: | $(bld_dir)
 $(bld_dir):
 	mkdir -p $(bld_dir)
 
-#==============================================================================
-# Meta-Targets (NEW SECTION)
-#==============================================================================
+# ======================================================================
+#   ЦЕЛИ ДЛЯ ЗАПУСКА СИМУЛЯЦИИ И КОМПИЛЯЦИИ
+# ======================================================================
 
-# Список инструментов для проверки компиляции
+# Список инструментов для проверки компиляции (комментарий из HEAD)
 COMPILE_TOOLS := vcs modelsim ncsim verilator verilator_wf
 
 compile:
@@ -404,10 +336,6 @@ compile:
 		echo "ERROR: Some compilations failed."; \
 		exit 1; \
 	fi
-
-#==============================================================================
-# Run Targets (Compile + Simulate)
-#==============================================================================
 
 run_vcs: $(test_info)
 	$(MAKE) -C $(root_dir)/sim build_vcs SIM_CFG_DEF=$(SIM_CFG_DEF) SIM_TRACE_DEF=$(SIM_TRACE_DEF) SIM_BUILD_OPTS="$(SIM_BUILD_OPTS)";
@@ -501,47 +429,36 @@ run_verilator_wf: $(test_info)
 	printf "                          Test               | build | simulation \n" ; \
 	printf "$$(cat $(test_results)) \n"
 
-
-#==============================================================================
-# Compile-Only Targets
-#==============================================================================
-
 run_vcs_compile: | $(bld_dir)
 	@echo "INFO: Compiling the project for VCS..."
 	$(MAKE) -C $(root_dir)/sim build_vcs SIM_CFG_DEF=$(SIM_CFG_DEF) SIM_TRACE_DEF=$(SIM_TRACE_DEF) SIM_BUILD_OPTS="$(SIM_BUILD_OPTS)"
 	@echo "INFO: VCS compilation check finished successfully."
-	@echo "INFO: Compiled artifacts can be found in $(bld_dir)"
 
 run_modelsim_compile: | $(bld_dir)
 	@echo "INFO: Compiling the project for ModelSim..."
 	$(MAKE) -C $(root_dir)/sim build_modelsim SIM_CFG_DEF=$(SIM_CFG_DEF) SIM_TRACE_DEF=$(SIM_TRACE_DEF) SIM_BUILD_OPTS="$(SIM_BUILD_OPTS)"
 	@echo "INFO: ModelSim compilation check finished successfully."
-	@echo "INFO: Compiled library can be found in $(bld_dir)"
 
 run_ncsim_compile: | $(bld_dir)
 	@echo "INFO: Compiling the project for NCSim (irun)..."
 	$(MAKE) -C $(root_dir)/sim build_ncsim SIM_CFG_DEF=$(SIM_CFG_DEF) SIM_TRACE_DEF=$(SIM_TRACE_DEF) SIM_BUILD_OPTS="$(SIM_BUILD_OPTS)"
 	@echo "INFO: NCSim compilation check finished successfully."
-	@echo "INFO: Compiled artifacts can be found in $(bld_dir)"
 
 run_verilator_compile: | $(bld_dir)
 	@echo "INFO: Compiling the project with Verilator..."
 	$(MAKE) -C $(root_dir)/sim build_verilator SIM_CFG_DEF=$(SIM_CFG_DEF) SIM_TRACE_DEF=$(SIM_TRACE_DEF) SIM_BUILD_OPTS="$(SIM_BUILD_OPTS)"
 	@echo "INFO: Verilator compilation check finished successfully."
-	@echo "INFO: Compiled executable can be found in $(bld_dir)/verilator/"
 
 run_verilator_wf_compile: | $(bld_dir)
 	@echo "INFO: Compiling the project with Verilator (waveform enabled)..."
 	$(MAKE) -C $(root_dir)/sim build_verilator_wf SIM_CFG_DEF=$(SIM_CFG_DEF) SIM_TRACE_DEF=$(SIM_TRACE_DEF) SIM_BUILD_OPTS="$(SIM_BUILD_OPTS)"
 	@echo "INFO: Verilator (waveform) compilation check finished successfully."
-	@echo "INFO: Compiled executable can be found in $(bld_dir)/verilator/"
-
-#==============================================================================
 
 clean:
 	$(RM) -R $(root_dir)/build/*
-#	$(MAKE) -C $(tst_dir)/benchmarks/dhrystone21 clean
-#	$(MAKE) -C $(tst_dir)/riscv_isa clean
-#	$(MAKE) -C $(tst_dir)/riscv_compliance clean
-#	$(MAKE) -C $(tst_dir)/riscv_arch clean
-#	$(RM) $(test_info)
+	# Сохраняем закомментированные цели очистки из HEAD, они могут быть полезны
+	# $(MAKE) -C $(tst_dir)/benchmarks/dhrystone21 clean
+	# $(MAKE) -C $(tst_dir)/riscv_isa clean
+	# $(MAKE) -C $(tst_dir)/riscv_compliance clean
+	# $(MAKE) -C $(tst_dir)/riscv_arch clean
+	# $(RM) $(test_info)
