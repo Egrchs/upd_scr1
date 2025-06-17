@@ -21,6 +21,7 @@
 `endif // SCR1_TDU_EN
 
 module scr1_pipe_top (
+    // ... (весь список портов остается без изменений) ...
     // Common
     input   logic                                       pipe_rst_n,                 // Pipe reset
 `ifdef SCR1_DBG_EN
@@ -105,6 +106,7 @@ module scr1_pipe_top (
 // Local signals declaration
 //-------------------------------------------------------------------------------
 
+// ... (все оригинальные local signals остаются на месте) ...
 // Pipeline control
 logic [`SCR1_XLEN-1:0]                      curr_pc;                // Current PC
 logic [`SCR1_XLEN-1:0]                      next_pc;                // Is written to MEPC on interrupt trap
@@ -140,6 +142,16 @@ logic                                       ifu2idu_imem_err;       // IFU instr
 logic                                       ifu2idu_err_rvi_hi;     // 1 - imem fault when trying to fetch second half of an unaligned RVI instruction
 logic                                       idu2ifu_rdy;            // IDU ready for new data
 
+`ifdef USE_TRANSLATOR
+// <<< ИЗМЕНЕНИЕ: Начало >>>
+logic                                       idu2ifu_rdy_unconnected; // Фиктивный провод для неподключенного порта
+// Объявляем провода для связи транслятора с IDU
+logic                                       translator2idu_vd;
+logic [`SCR1_IMEM_DWIDTH-1:0]               translator2idu_instr;
+logic                                       translator2idu_imem_err;
+// <<< ИЗМЕНЕНИЕ: Конец >>>
+`endif // USE_TRANSLATOR
+// ... (остальные local signals без изменений) ...
 // IDU <-> EXU
 logic                                       idu2exu_req;            // IDU request
 type_scr1_exu_cmd_s                         idu2exu_cmd;            // IDU command (see scr1_riscv_isa_decoding.svh)
@@ -275,6 +287,7 @@ logic                                       pipe2clkctl_wake_req_o;
 //-------------------------------------------------------------------------------
 // Pipeline logic
 //-------------------------------------------------------------------------------
+// ... (эта часть остается без изменений) ...
 assign stop_fetch   = wfi_run2halt
 `ifdef SCR1_DBG_EN
                     | fetch_pbuf
@@ -301,21 +314,19 @@ scr1_pipe_ifu i_pipe_ifu (
     .rst_n                    (pipe_rst_n         ),
     .clk                      (clk                ),
 
-    // Instruction memory interface
+    // ... (порты memory и new_pc остаются без изменений) ...
     .imem2ifu_req_ack_i       (imem2pipe_req_ack_i),
     .ifu2imem_req_o           (pipe2imem_req_o    ),
     .ifu2imem_cmd_o           (pipe2imem_cmd_o    ),
     .ifu2imem_addr_o          (pipe2imem_addr_o   ),
     .imem2ifu_rdata_i         (imem2pipe_rdata_i  ),
     .imem2ifu_resp_i          (imem2pipe_resp_i   ),
-
-    // New PC interface
     .exu2ifu_pc_new_req_i     (new_pc_req         ),
     .exu2ifu_pc_new_i         (new_pc             ),
     .pipe2ifu_stop_fetch_i    (stop_fetch         ),
 
+    // ... (порты debug и clkctrl остаются без изменений) ...
 `ifdef SCR1_DBG_EN
-    // IFU <-> HDU Program Buffer interface
     .hdu2ifu_pbuf_fetch_i     (fetch_pbuf         ),
     .ifu2hdu_pbuf_rdy_o       (ifu2hdu_pbuf_rdy   ),
     .hdu2ifu_pbuf_vd_i        (hdu2ifu_pbuf_vd    ),
@@ -334,6 +345,29 @@ scr1_pipe_ifu i_pipe_ifu (
     .ifu2idu_vd_o             (ifu2idu_vd         )
 );
 
+`ifdef USE_TRANSLATOR
+// <<< ИЗМЕНЕНИЕ: Начало >>>
+//-------------------------------------------------------------------------------
+// MIPS to RISC-V Translator
+//-------------------------------------------------------------------------------
+mips_to_riscv_translator_fixed u_mips_translator (
+    .clk                    (clk),
+    .pipe_rst_n             (pipe_rst_n),
+
+    // Интерфейс с IFU (вход транслятора)
+    .mips_instruction       (ifu2idu_instr),
+    .mips_instr_valid       (ifu2idu_vd),
+    .mips_instr_error       (ifu2idu_imem_err | ifu2idu_err_rvi_hi), // Объединяем обе ошибки
+    .translator_ready       (idu2ifu_rdy),      // Готовность транслятора управляет IFU
+
+    // Интерфейс с IDU (выход транслятора)
+    .riscv_instruction      (translator2idu_instr),
+    .riscv_instr_valid      (translator2idu_vd),
+    .riscv_instr_error      (translator2idu_imem_err),
+    .riscv_instr_accepted   (exu2idu_rdy) // Готовность EXU управляет транслятором
+);
+// <<< ИЗМЕНЕНИЕ: Конец >>>
+`endif // USE_TRANSLATOR
 //-------------------------------------------------------------------------------
 // Instruction decode unit
 //-------------------------------------------------------------------------------
@@ -342,12 +376,23 @@ scr1_pipe_idu i_pipe_idu (
     .rst_n                  (pipe_rst_n        ),
     .clk                    (clk               ),
 `endif // SCR1_TRGT_SIMULATION
+    
+`ifdef USE_TRANSLATOR
+    // <<< ИЗМЕНЕНИЕ: Начало >>>
+    .idu2ifu_rdy_o          (idu2ifu_rdy_unconnected), // Этот выход больше не используется напрямую
+    .ifu2idu_instr_i        (translator2idu_instr),
+    .ifu2idu_imem_err_i     (translator2idu_imem_err),
+    .ifu2idu_err_rvi_hi_i   (1'b0), // Подаем константу, т.к. транслятор не генерирует этот тип ошибки
+    .ifu2idu_vd_i           (translator2idu_vd),
+    // <<< ИЗМЕНЕНИЕ: Конец >>>
+`else
+// --- ОРИГИНАЛЬНАЯ ВЕРСИЯ БЕЗ ТРАНСЛЯТОРА ---
     .idu2ifu_rdy_o          (idu2ifu_rdy       ),
     .ifu2idu_instr_i        (ifu2idu_instr     ),
     .ifu2idu_imem_err_i     (ifu2idu_imem_err  ),
     .ifu2idu_err_rvi_hi_i   (ifu2idu_err_rvi_hi),
     .ifu2idu_vd_i           (ifu2idu_vd        ),
-
+`endif // USE_TRANSLATOR
     .idu2exu_req_o          (idu2exu_req       ),
     .idu2exu_cmd_o          (idu2exu_cmd       ),
     .idu2exu_use_rs1_o      (idu2exu_use_rs1   ),
@@ -358,6 +403,7 @@ scr1_pipe_idu i_pipe_idu (
 `endif // SCR1_NO_EXE_STAGE
     .exu2idu_rdy_i          (exu2idu_rdy       )
 );
+
 
 //-------------------------------------------------------------------------------
 // Execution unit

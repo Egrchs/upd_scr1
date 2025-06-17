@@ -1,3 +1,4 @@
+core/pipeline/mips_to_riscv_translator_fixed.sv
 core/pipeline/scr1_pipe_hdu.sv
 core/pipeline/scr1_pipe_tdu.sv
 core/pipeline/scr1_ipic.sv
