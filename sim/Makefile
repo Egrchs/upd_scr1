@@ -20,14 +20,11 @@ ifeq ($(BUS),AXI)
 export scr1_wrapper  := $(root_dir)/sim/verilator_wrap/scr1_axi_wrapper.c
 endif
 export verilator_ver ?= $(shell  expr `verilator --version | cut -f2 -d' '`)
-
 export verilator_ver_5x ?= $(shell  expr `verilator --version | cut -f2 -d' '` \>= 5)
 
 ifeq "$(verilator_ver_5x)" "1"
-    VERILATOR_5X_OPTS ?= --no-timing # conservative way
+    VERILATOR_5X_OPTS ?= --no-timing
 endif
-
-
 endif
 
 .PHONY: build_modelsim build_vcs build_ncsim build_verilator build_verilator_wf
@@ -85,6 +82,10 @@ build_ncsim: $(sv_list)
 	$(sv_list) \
 	-top $(top_module)
 
+# --- Упрощенные правила для Verilator ---
+# Убраны хаки с добавлением правил в Makefile Verilator, т.к. они
+# часто ломаются при обновлениях и зависят от конкретной системы.
+# Verilator должен сам находить wrapper по стандартным путям.
 build_verilator: $(sv_list)
 	cd $(bld_dir); \
 	verilator \
@@ -102,7 +103,6 @@ build_verilator: $(sv_list)
 	--Mdir $(bld_dir)/verilator \
 	-I$(rtl_inc_dir) \
 	-I$(rtl_inc_tb_dir) \
-	$(SIM_BUILD_OPTS) \
 	$(sv_list); \
 	cd verilator; \
 	$(MAKE) -f V$(top_module).mk;
@@ -130,9 +130,6 @@ build_verilator_wf: $(sv_list)
 	--Mdir $(bld_dir)/verilator \
 	-I$(rtl_inc_dir) \
 	-I$(rtl_inc_tb_dir) \
-	$(SIM_BUILD_OPTS) \
 	$(sv_list); \
 	cd verilator; \
 	$(MAKE) -f V$(top_module).mk;
-
-
