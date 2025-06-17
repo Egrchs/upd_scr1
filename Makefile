@@ -4,11 +4,12 @@
 # включая Debian/Ubuntu, Arch Linux (Steam Deck) и WSL.
 #------------------------------------------------------------------------------
 
-# ======================================================================
-#   АВТОМАТИЧЕСКОЕ ОПРЕДЕЛЕНИЕ ТУЛЧЕЙНА И ПУТЕЙ
-# ======================================================================
+# --- 1. Определяем тип ОС ---
+# IS_ARCH_BASED будет 'yes' для Arch Linux, Manjaro, SteamOS и т.д.
+IS_ARCH_BASED := $(shell (grep -q -i -e "ID_LIKE=arch" -e "ID=arch" /etc/os-release 2>/dev/null || uname -n | grep -q -i 'steamdeck') && echo "yes")
+export IS_ARCH_BASED
 
-# --- 1. Автоматическое определение префикса кросс-компилятора ---
+# --- 2. Автоматическое определение префикса кросс-компилятора ---
 detected_gcc_cmd := $(firstword $(shell command -v riscv64-unknown-elf-gcc 2>/dev/null) $(shell command -v riscv64-elf-gcc 2>/dev/null))
 ifeq ($(detected_gcc_cmd),)
   $(error "ERROR: Could not find 'riscv64-unknown-elf-gcc' or 'riscv64-elf-gcc' in your PATH. Please ensure the RISC-V toolchain is installed.")
@@ -17,7 +18,7 @@ endif
 export CROSS_PREFIX := $(patsubst %gcc,%,$(notdir $(detected_gcc_cmd)))
 $(info [INFO] Detected toolchain prefix: '$(CROSS_PREFIX)')
 
-# --- 2. Автоматический поиск путей к библиотекам и заголовкам ---
+# --- 3. Автоматический поиск путей к библиотекам и заголовкам ---
 INCLUDE_PATH := $(shell find /usr -path "*/$(CROSS_PREFIX)include" -type d 2>/dev/null | head -n 1)
 ifeq ($(INCLUDE_PATH),)
   INCLUDE_PATH := $(shell find /usr -path '*/riscv64-*/include' -type d 2>/dev/null | head -n 1)
@@ -25,6 +26,29 @@ endif
 
 LIB_C_PATH   := $(shell find /usr -path '*/rv32imac/ilp32/libc.a' 2>/dev/null | head -n 1 | xargs -r dirname)
 LIB_GCC_PATH := $(shell find /usr -path '*/rv32imac/ilp32/libgcc.a' 2>/dev/null | head -n 1 | xargs -r dirname)
+
+# --- 4. Проверка найденных путей ---
+ifeq ($(INCLUDE_PATH),)
+  $(error "ERROR: Could not find riscv64 include path. Please ensure toolchain is installed.")
+endif
+ifeq ($(LIB_C_PATH),)
+  $(error "ERROR: Could not find 32-bit libc.a library path (rv32imac/ilp32). Please ensure toolchain is installed.")
+endif
+ifeq ($(LIB_GCC_PATH),)
+  $(error "ERROR: Could not find 32-bit gcc library path (rv32imac/ilp32). Please ensure toolchain is installed.")
+endif
+
+$(info [INFO] Found include path: $(INCLUDE_PATH))
+$(info [INFO] Found libc path:    $(LIB_C_PATH))
+$(info [INFO] Found libgcc path:  $(LIB_GCC_PATH))
+
+# --- 5. Экспорт переменных тулчейна ---
+export RISCV_GCC     := $(CROSS_PREFIX)gcc -I$(INCLUDE_PATH)
+export RISCV_OBJDUMP ?= $(CROSS_PREFIX)objdump -D
+export RISCV_OBJCOPY ?= $(CROSS_PREFIX)objcopy -O verilog
+export RISCV_READELF ?= $(CROSS_PREFIX)readelf -s
+export LIB_C_PATH
+export LIB_GCC_PATH
 
 # --- 3. Проверка найденных путей ---
 ifeq ($(INCLUDE_PATH),)

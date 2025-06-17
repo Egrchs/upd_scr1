@@ -20,11 +20,10 @@ ifeq ($(BUS),AXI)
 export scr1_wrapper  := $(root_dir)/sim/verilator_wrap/scr1_axi_wrapper.c
 endif
 export verilator_ver ?= $(shell  expr `verilator --version | cut -f2 -d' '`)
-
 export verilator_ver_5x ?= $(shell  expr `verilator --version | cut -f2 -d' '` \>= 5)
 
 ifeq "$(verilator_ver_5x)" "1"
-    VERILATOR_5X_OPTS ?= --no-timing # conservative way
+    VERILATOR_5X_OPTS ?= --no-timing
 endif
 endif
 
@@ -83,6 +82,10 @@ build_ncsim: $(sv_list)
 	$(sv_list) \
 	-top $(top_module)
 
+# --- Упрощенные правила для Verilator ---
+# Убраны хаки с добавлением правил в Makefile Verilator, т.к. они
+# часто ломаются при обновлениях и зависят от конкретной системы.
+# Verilator должен сам находить wrapper по стандартным путям.
 build_verilator: $(sv_list)
 	cd $(bld_dir); \
 	verilator \
@@ -102,8 +105,6 @@ build_verilator: $(sv_list)
 	-I$(rtl_inc_tb_dir) \
 	$(sv_list); \
 	cd verilator; \
-	echo 'scr1_ahb_wrapper.o: /home/deck/Documents/repos/upd_scr1/sim/verilator_wrap/scr1_ahb_wrapper.c' >> V$(top_module).mk; \
-	printf '\t$$(CXX) $$(CXXFLAGS) $$(CPPFLAGS) -I/usr/lib/modules/6.12.8-arch1-1/build/include -I/usr/lib/modules/6.12.8-arch1-1/build/arch/x86/include/generated/uapi -I/usr/lib/modules/6.12.8-arch1-1/build/include/uapi -I/usr/lib/modules/6.12.8-arch1-1/build/arch/x86/include/uapi -c -o $$@ $$<\n' >> V$(top_module).mk; \
 	$(MAKE) -f V$(top_module).mk;
 
 build_verilator_wf: $(sv_list)
@@ -124,13 +125,11 @@ build_verilator_wf: $(sv_list)
 	--exe $(scr1_wrapper) \
 	--trace \
 	--trace-params \
-	--trace-structs \
-	--trace-underscore \
+    --trace-structs \
+    --trace-underscore \
 	--Mdir $(bld_dir)/verilator \
 	-I$(rtl_inc_dir) \
 	-I$(rtl_inc_tb_dir) \
 	$(sv_list); \
 	cd verilator; \
-	echo 'scr1_ahb_wrapper.o: /home/deck/Documents/repos/upd_scr1/sim/verilator_wrap/scr1_ahb_wrapper.c' >> V$(top_module).mk; \
-	printf '\t$$(CXX) $$(CXXFLAGS) $$(CPPFLAGS) -I/usr/lib/modules/6.12.8-arch1-1/build/include -I/usr/lib/modules/6.12.8-arch1-1/build/arch/x86/include/generated/uapi -I/usr/lib/modules/6.12.8-arch1-1/build/include/uapi -I/usr/lib/modules/6.12.8-arch1-1/build/arch/x86/include/uapi -c -o $$@ $$<\n' >> V$(top_module).mk; \
 	$(MAKE) -f V$(top_module).mk;
