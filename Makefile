@@ -2,24 +2,55 @@
 # Makefile for SCR1
 #------------------------------------------------------------------------------
 
+# --- ОПРЕДЕЛЕНИЕ СРЕДЫ И ПУТЕЙ ---
+# Проверяем, запущена ли сборка на Steam Deck (SteamOS)
+IS_STEAM_DECK := $(shell (grep -q -i 'ID=steamos' /etc/os-release || uname -n | grep -q -i 'steamdeck') && echo "yes")
 
-# ======================================================================
-#   АВТОМАТИЧЕСКОЕ ОПРЕДЕЛЕНИЕ ПУТЕЙ
-# ======================================================================
-# Используем shell-команды для поиска путей. Работает в системах на базе Debian.
-INCLUDE_PATH := $(shell dpkg -L picolibc-riscv64-unknown-elf 2>/dev/null | grep '/include/string.h$$' | head -n 1 | xargs -r dirname)
-LIB_C_PATH   := $(shell dpkg -L picolibc-riscv64-unknown-elf 2>/dev/null | grep '/rv32imac/ilp32/libc.a$$' | head -n 1 | xargs -r dirname)
-LIB_GCC_PATH := $(shell dpkg -L gcc-riscv64-unknown-elf 2>/dev/null | grep '/rv32imac/ilp32/libgcc.a$$' | head -n 1 | xargs -r dirname)
+ifeq ($(IS_STEAM_DECK), yes)
+    # --- ЛОГИКА ДЛЯ STEAM DECK (ARCH LINUX) ---
+    $(info Detected Steam Deck environment.)
+
+    # Устанавливаем префикс тулчейна для Steam Deck
+    export CROSS_PREFIX := riscv64-elf-
+    $(info Using toolchain prefix: $(CROSS_PREFIX))
+
+    # На SteamOS нет dpkg, поэтому мы не можем использовать старый метод.
+    # Используем предполагаемые пути. Пользователю может потребоваться их скорректировать.
+    # Вы можете найти реальные пути с помощью команды: `pacman -Ql picolibc-riscv64-unknown-elf`
+    # и `pacman -Ql riscv64-elf-gcc`
+    INCLUDE_PATH ?= /usr/riscv64-elf/include
+    LIB_C_PATH   ?= /usr/riscv64-elf/lib/rv32imac/ilp32
+    LIB_GCC_PATH ?= /usr/lib/gcc/riscv64-elf/14.1.0/rv32imac/ilp32 # Версию GCC (14.1.0) возможно нужно будет обновить
+
+    $(info NOTE: Using assumed library paths for Steam Deck. If build fails, please verify these paths.)
+    $(info      INCLUDE_PATH: $(INCLUDE_PATH))
+    $(info      LIB_C_PATH:   $(LIB_C_PATH))
+    $(info      LIB_GCC_PATH: $(LIB_GCC_PATH))
+
+else
+    # --- СТАНДАРТНАЯ ЛОГИКА ДЛЯ DEBIAN/UBUNTU ---
+    $(info Detected standard Debian-based environment.)
+
+    # Устанавливаем префикс тулчейна по умолчанию
+    export CROSS_PREFIX  ?= riscv64-unknown-elf-
+    $(info Using toolchain prefix: $(CROSS_PREFIX))
+
+    # Используем shell-команды для поиска путей через dpkg.
+    INCLUDE_PATH := $(shell dpkg -L picolibc-riscv64-unknown-elf 2>/dev/null | grep '/include/string.h$$' | head -n 1 | xargs -r dirname)
+    LIB_C_PATH   := $(shell dpkg -L picolibc-riscv64-unknown-elf 2>/dev/null | grep '/rv32imac/ilp32/libc.a$$' | head -n 1 | xargs -r dirname)
+    LIB_GCC_PATH := $(shell dpkg -L gcc-riscv64-unknown-elf 2>/dev/null | grep '/rv32imac/ilp32/libgcc.a$$' | head -n 1 | xargs -r dirname)
+
+endif
 
 # Проверяем, что все пути были найдены. Если нет - останавливаемся с ошибкой.
 ifeq ($(INCLUDE_PATH),)
-  $(error "ERROR: Could not find picolibc include path. Please run: sudo apt install picolibc-riscv64-unknown-elf")
+  $(error "ERROR: Could not find picolibc include path. Please install the required packages for your system (e.g., picolibc-riscv64-unknown-elf).")
 endif
 ifeq ($(LIB_C_PATH),)
-  $(error "ERROR: Could not find 32-bit picolibc library path. Please run: sudo apt install picolibc-riscv64-unknown-elf")
+  $(error "ERROR: Could not find 32-bit picolibc library path. Please install the required packages for your system.")
 endif
 ifeq ($(LIB_GCC_PATH),)
-  $(error "ERROR: Could not find 32-bit gcc library path. Please run: sudo apt install gcc-riscv64-unknown-elf")
+  $(error "ERROR: Could not find 32-bit gcc library path. Please install the required packages for your system (e.g., gcc-riscv64-unknown-elf).")
 endif
 
 # Экспортируем переменные, чтобы они были доступны в дочерних Make-файлах
@@ -197,7 +228,7 @@ current_primary_goal := $(firstword $(filter-out compile, $(filter $(PRIMARY_GOA
 
 # Если основная цель не указана (например, `make` или `make compile`), используем verilator по умолчанию.
 ifeq ($(current_primary_goal),)
-    current_primary_goal := run_verilator
+    current_primary_goal := run_verilatorAAZZ
 endif
 
 # Преобразуем полную цель в короткое имя для пути
@@ -217,7 +248,6 @@ sim_results  := $(bld_dir)/sim_results.txt
 
 todo_list    := $(bld_dir)/todo.txt
 # Environment
-export CROSS_PREFIX  ?= riscv64-unknown-elf-
 # Используем наш автоматически найденный путь к include
 export RISCV_GCC     := $(CROSS_PREFIX)gcc -I$(INCLUDE_PATH)
 export RISCV_OBJDUMP ?= $(CROSS_PREFIX)objdump -D
@@ -240,7 +270,7 @@ ifeq "$(GCCVERSIONGT7)" "1"
     ifneq (,$(findstring f,$(ARCH_lowercase)))
         override ABI := ilp32f
     else ifneq (,$(findstring e,$(ARCH_lowercase)))
-        override ABI := ilp32e
+        override ABI := ilp32eAC
     endif
 endif
 #--
@@ -328,13 +358,6 @@ mips_custom_tests: | $(bld_dir)
 
 $(bld_dir):
 	mkdir -p $(bld_dir)
-
-#==============================================================================
-# Meta-Targets (NEW SECTION)
-#==============================================================================
-
-# Список инструментов для проверки компиляции
-COMPILE_TOOLS := vcs modelsim ncsim verilator verilator_wf
 
 #==============================================================================
 # Meta-Targets (NEW SECTION)
