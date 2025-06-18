@@ -519,8 +519,8 @@ end
 always_comb begin
     fpu_state_next = fpu_state_ff;
     case (fpu_state_ff)
-        FPU_IDLE: if (exu_queue_vd & exu_queue.is_fp_op & fpu2exu_ready_i)
-                    fpu_state_next = FPU_BUSY;
+        FPU_IDLE: if (exu_queue_vd & exu_queue.is_fp_op & fpu2exu_ready_i & (exu_queue.fpu_cmd != FPU_CMD_MV_X_F)) // NEW
+            fpu_state_next = FPU_BUSY;
         FPU_BUSY: if (fpu2exu_valid_i)
                     fpu_state_next = FPU_DONE;
         FPU_DONE: fpu_state_next = FPU_IDLE;
@@ -528,12 +528,13 @@ always_comb begin
 end
 
 // Управляющие сигналы
-assign exu2fpu_req_o = (fpu_state_ff == FPU_IDLE) & exu_queue_vd & exu_queue.is_fp_op;
+assign exu2fpu_req_o = (fpu_state_ff == FPU_IDLE) & exu_queue_vd & exu_queue.is_fp_op &
+                       (exu_queue.fpu_cmd != FPU_CMD_MV_X_F); // NEW
 
 assign exu2fpu_operands_o = {fprf2exu_rs3_data_i, fprf2exu_rs2_data_i, fprf2exu_rs1_data_i};
 assign exu2fpu_src_fmt_o = fpnew_pkg::FP32;
 assign exu2fpu_dst_fmt_o = fpnew_pkg::FP32;
-assign exu2fpu_rnd_mode_o = fpnew_pkg::RNE;
+
 
 always_comb begin
     exu2fpu_op_o = fpnew_pkg::ADD; // Значение по умолчанию
@@ -543,35 +544,52 @@ always_comb begin
         FPU_CMD_MUL: exu2fpu_op_o = fpnew_pkg::MUL;
         FPU_CMD_DIV: exu2fpu_op_o = fpnew_pkg::DIV;
         FPU_CMD_SQRT: exu2fpu_op_o = fpnew_pkg::SQRT;
+
         // Добавьте сюда другие команды по мере необходимости
         default: exu2fpu_op_o = fpnew_pkg::ADD;
     endcase
 end
+
+
+always_comb begin
+    exu2fpu_rnd_mode_o = fpnew_pkg::RNE; // Значение по умолчанию
+    case (exu_queue.fpu_rm)
+        FPU_RND_RNE: exu2fpu_rnd_mode_o = fpnew_pkg::RNE;
+        FPU_RND_RTZ: exu2fpu_rnd_mode_o = fpnew_pkg::RTZ;
+        FPU_RND_RDN: exu2fpu_rnd_mode_o = fpnew_pkg::RDN;
+        FPU_RND_RUP: exu2fpu_rnd_mode_o = fpnew_pkg::RUP;
+        FPU_RND_RMM: exu2fpu_rnd_mode_o = fpnew_pkg::RMM;
+        FPU_RND_DYN: exu2fpu_rnd_mode_o = fpnew_pkg::DYN;
+        // Добавьте сюда другие команды по мере необходимости
+        default: exu2fpu_rnd_mode_o = fpnew_pkg::RNE;
+    endcase
+end
+
 fpnew_top #(
-    .Features       (fpnew_pkg::RV32F),
-    .Implementation (fpnew_pkg::DEFAULT_NOREGS),
-    .TagType        (logic)
+    .Features          (fpnew_pkg::RV32F),
+    .Implementation    (fpnew_pkg::DEFAULT_NOREGS), // Или другую реализацию, если хотите
+    .TagType           (logic) // Если не используете теги, то logic
 ) i_fpnew (
-    .clk_i          (clk),
-    .rst_ni         (rst_n),
-    .operands_i     (exu2fpu_operands_o),
-    .rnd_mode_i     (exu2fpu_rnd_mode_o),
-    .op_i           (exu2fpu_op_o),
-    .op_mod_i       (1'b0),
-    .src_fmt_i      (exu2fpu_src_fmt_o),
-    .dst_fmt_i      (exu2fpu_dst_fmt_o),
-    .int_fmt_i      (),
-    .vectorial_op_i (1'b0),
-    .tag_i          (1'b0),
-    .in_valid_i     (exu2fpu_req_o),
-    .in_ready_o     (fpu2exu_ready_i),
-    .flush_i        (1'b0),
-    .result_o       (fpu2exu_result_i),
-    .status_o       (fpu2exu_status_i),
-    .tag_o          (),
-    .out_valid_o    (fpu2exu_valid_i),
-    .out_ready_i    (1'b1),
-    .busy_o         ()
+    .clk_i             (clk),
+    .rst_ni            (rst_n),
+    .operands_i        (exu2fpu_operands_o),
+    .rnd_mode_i        (exu2fpu_rnd_mode_o),
+    .op_i              (exu2fpu_op_o),
+    .op_mod_i          (1'b0), // Для некоторых операций, таких как FMSUB
+    .src_fmt_i         (exu2fpu_src_fmt_o),
+    .dst_fmt_i         (exu2fpu_dst_fmt_o),
+    .int_fmt_i         (fpnew_pkg::INT32), // Для FCVT, FCLASS
+    .vectorial_op_i    (1'b0),
+    .tag_i             (1'b0),
+    .in_valid_i        (exu2fpu_req_o),
+    .in_ready_o        (fpu2exu_ready_i),
+    .flush_i           (1'b0),
+    .result_o          (fpu2exu_result_i),
+    .status_o          (fpu2exu_status_i),
+    .tag_o             (),
+    .out_valid_o       (fpu2exu_valid_i),
+    .out_ready_i       (fpu_state_ff == FPU_DONE), // EXU готов принять результат после FPU_DONE
+    .busy_o            ()
 );
 // Инстанс FPNew
 // Вам нужно будет убедиться, что путь к fpnew_top.sv и fpnew_pkg.sv
@@ -1000,6 +1018,7 @@ always_comb begin
         SCR1_RD_WB_INC_PC: exu2mprf_rd_data_o = inc_pc;
         SCR1_RD_WB_LSU   : exu2mprf_rd_data_o = lsu_l_data;
         SCR1_RD_WB_CSR   : exu2mprf_rd_data_o = csr2exu_r_data_i;
+        SCR1_RD_WB_FPRF_RS1: exu2mprf_rd_data_o = fprf2exu_rs1_data_i; // NEW
         default          : exu2mprf_rd_data_o = ialu_main_res;
     endcase
 end
@@ -1012,10 +1031,17 @@ assign exu2fprf_rs2_addr_o = exu_queue.is_fp_op ? exu_queue.rs2_addr : '0;
 assign exu2fprf_rs3_addr_o = exu_queue.is_fp_op ? exu_queue.rs3_addr : '0;
 
 // Запись в FPRF
-assign exu2fprf_w_req_o = (fpu_state_ff == FPU_DONE) |
-                         (exu_queue.lsu_cmd == LSU_CMD_FLW & lsu_rdy);
+
 assign exu2fprf_rd_addr_o = exu_queue.rd_addr;
-assign exu2fprf_rd_data_o = (fpu_state_ff == FPU_DONE) ? fpu2exu_result_i : lsu_l_data;
+
+assign exu2fprf_w_req_o = (fpu_state_ff == FPU_DONE) |
+                          (exu_queue.lsu_cmd == LSU_CMD_FLW & lsu_rdy) |
+                          (exu_queue.fpu_cmd == FPU_CMD_MV_X_F & exu_queue_vd); // NEW
+assign exu2fprf_rd_data_o = (fpu_state_ff == FPU_DONE) ? fpu2exu_result_i :
+                            (exu_queue.lsu_cmd == LSU_CMD_FLW) ? lsu_l_data :
+                            (exu_queue.fpu_cmd == FPU_CMD_MV_X_F) ? mprf2exu_rs1_data_i : // NEW
+                            '0;
+
 `endif
 //------------------------------------------------------------------------------
 // EXU <-> CSR interface

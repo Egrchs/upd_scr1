@@ -151,7 +151,7 @@ typedef enum logic [SCR1_CSR_CMD_WIDTH_E-1:0] {
 // MPRF rd writeback source
 //-------------------------------------------------------------------------------
 `ifdef SCR1_RVF_EXT
-    localparam SCR1_RD_WB_ALL_NUM_E = 8;
+    localparam SCR1_RD_WB_ALL_NUM_E = 9;
 `else
     localparam SCR1_RD_WB_ALL_NUM_E = 7;
 `endif
@@ -165,7 +165,8 @@ typedef enum logic [SCR1_RD_WB_WIDTH_E-1:0] {
     SCR1_RD_WB_LSU,             // Load from DMEM
     SCR1_RD_WB_CSR              // Read CSR
     `ifdef SCR1_RVF_EXT
-    , SCR1_RD_WB_FPU
+    , SCR1_RD_WB_FPU,
+     SCR1_RD_WB_FPRF_RS1
     `endif
 } type_scr1_rd_wb_sel_e;
 `ifdef SCR1_RVF_EXT
@@ -175,6 +176,19 @@ typedef enum logic [3:0] {
     FPU_CMD_SGNJ, FPU_CMD_MINMAX, FPU_CMD_CVT_F_I, FPU_CMD_CVT_I_F, FPU_CMD_CMP,
     FPU_CMD_CLASS, FPU_CMD_MV_X_F, FPU_CMD_MV_F_X
 } type_scr1_fpu_cmd_e;
+`endif
+
+
+`ifdef SCR1_RVF_EXT
+// FPU commands
+typedef enum logic [2:0] {
+    FPU_RND_RNE,
+    FPU_RND_RTZ,
+    FPU_RND_RDN,
+    FPU_RND_RUP,
+    FPU_RND_RMM,
+    FPU_RND_DYN
+} type_scr1_fpu_round_e;
 `endif
 //-------------------------------------------------------------------------------
 // IDU to EXU full command structure
@@ -206,7 +220,10 @@ typedef struct packed {
     logic                               is_fp_op;
     type_scr1_fpu_cmd_e                 fpu_cmd;
     logic [2:0]                         fpu_rm;
+    //logic [4:0]                         frs1_addr;
+    //logic [4:0]                         frs2_addr;
     logic [4:0]                         rs3_addr;
+    //logic [4:0]                         frd_addr;
     `endif
 } type_scr1_exu_cmd_s;
 
