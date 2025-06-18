@@ -1,0 +1,27 @@
+деассемблер кодда чтобы проверить инструкции и адреса
+
+(deck@steamdeck mips_obj)$ mipsel-linux-objdump -d simple_add.hex.elf 
+
+simple_add.hex.elf:     file format elf32-tradlittlemips
+
+
+Disassembly of section .text:
+
+00000000 <_start_physical-0x1fc>:
+        ...
+
+000001fc <_start_physical>:
+ 1fc:   00000000        nop
+
+00000200 <_start>:
+ 200:   3c100000        lui     s0,0x0
+ 204:   36101000        ori     s0,s0,0x1000
+ 208:   3408002a        li      t0,0x2a
+ 20c:   01004821        move    t1,t0
+ 210:   340d002a        li      t5,0x2a
+ 214:   012d202b        sltu    a0,t1,t5
+ 218:   01a9282b        sltu    a1,t5,t1
+ 21c:   00853025        or      a2,a0,a1
+ 220:   ae060000        sw      a2,0(s0)
+        ...
+

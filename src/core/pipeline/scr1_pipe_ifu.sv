@@ -455,7 +455,15 @@ assign q_has_free_slots = (SCR1_TXN_CNT_W'(q_free_w_next) > imem_vd_pnd_txns_cnt
 assign q_has_1_ocpd_hw  = (q_ocpd_h == SCR1_IFU_Q_FREE_H_W'(1));
 
 assign q_head_is_rvi    = &(q_data_head[1:0]);
-assign q_head_is_rvc    = ~q_head_is_rvi;
+`ifdef USE_TRANSLATOR
+    // В режиме MIPS все инструкции считаем 32-битными RVI.
+    // Это отключает "умный" анализ и заставляет IFU просто
+    // передавать 32-битные слова как есть.
+    assign q_head_is_rvc = 1'b0;
+`else
+    // Оригинальная логика для RISC-V
+    assign q_head_is_rvc    = ~q_head_is_rvi;
+`endif
 
 //------------------------------------------------------------------------------
 // IFU FSM
