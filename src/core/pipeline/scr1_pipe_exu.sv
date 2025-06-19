@@ -537,16 +537,21 @@ assign exu2fpu_dst_fmt_o = fpnew_pkg::FP32;
 
 
 always_comb begin
-    exu2fpu_op_o = fpnew_pkg::ADD; // Значение по умолчанию
+    //exu2fpu_op_o = fpnew_pkg::ADD; // Значение по умолчанию
     case (exu_queue.fpu_cmd)
         FPU_CMD_ADD: exu2fpu_op_o = fpnew_pkg::ADD;
         FPU_CMD_SUB: exu2fpu_op_o = fpnew_pkg::FNMSUB;
         FPU_CMD_MUL: exu2fpu_op_o = fpnew_pkg::MUL;
         FPU_CMD_DIV: exu2fpu_op_o = fpnew_pkg::DIV;
         FPU_CMD_SQRT: exu2fpu_op_o = fpnew_pkg::SQRT;
-
+        FPU_CMD_CLASS: exu2fpu_op_o = fpnew_pkg::CLASSIFY;
+        FPU_CMD_SGNJ: exu2fpu_op_o = fpnew_pkg::SGNJ;
+        FPU_CMD_MINMAX: exu2fpu_op_o = fpnew_pkg::MINMAX;
+        FPU_CMD_CMP: exu2fpu_op_o = fpnew_pkg::CMP;
+        FPU_CMD_CVT_F_I: exu2fpu_op_o = fpnew_pkg::F2I;
+        FPU_CMD_CVT_I_F: exu2fpu_op_o = fpnew_pkg::I2F;
         // Добавьте сюда другие команды по мере необходимости
-        default: exu2fpu_op_o = fpnew_pkg::ADD;
+        //default: exu2fpu_op_o = fpnew_pkg::ADD;
     endcase
 end
 
