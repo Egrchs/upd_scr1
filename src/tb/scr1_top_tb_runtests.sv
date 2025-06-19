@@ -7,7 +7,7 @@
 //-------------------------------------------------------------------------------
 
 // Адрес в памяти для MIPS тестов, куда будет записываться статус (0=PASS, >0=FAIL)
-localparam logic [31:0] MIPS_TEST_STATUS_ADDR = 32'h1000;
+localparam logic [31:0] MIPS_TEST_STATUS_ADDR = 32'h400;
 
 `ifdef USE_WSL_WRAPPER
     string cmd;
