@@ -64,7 +64,7 @@ always_ff @(posedge clk) begin
             
             // Проверяем, было ли записано валидное значение (0 или 1)
             // и прошло ли достаточно времени, чтобы избежать ложных срабатываний
-            if ((status_byte === 8'h00 || status_byte === 8'h01) && watchdogs_cnt > 100) begin
+            if ((status_byte === 8'h00 || status_byte === 8'h01) && watchdogs_cnt > 30) begin
                 $display("INFO: MIPS test status write detected at 0x%h!", MIPS_TEST_STATUS_ADDR);
                 test_running <= 1'b0;
 
