@@ -18,7 +18,7 @@ module scr1_top_tb_axi (
 // Local parameters
 //------------------------------------------------------------------------------
 localparam                          SCR1_MEM_SIZE       = 1024*1024;
-localparam                          TIMEOUT             = 'd50;//20ms;
+localparam                          TIMEOUT             = 'd2000_000;//20ms;
 localparam                          ARCH                = 'h1;
 localparam                          COMPLIANCE          = 'h2;
 localparam                          ADDR_START          = 'h200;
