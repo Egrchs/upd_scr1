@@ -531,7 +531,7 @@ end
 assign exu2fpu_req_o = (fpu_state_ff == FPU_IDLE) & exu_queue_vd & exu_queue.is_fp_op &
                        (exu_queue.fpu_cmd != FPU_CMD_MV_X_F); // NEW
 
-assign exu2fpu_operands_o = {fprf2exu_rs3_data_i, fprf2exu_rs2_data_i, fprf2exu_rs1_data_i};
+assign exu2fpu_operands_o = {mprf2exu_rs1_data_i, mprf2exu_rs2_data_i, fprf2exu_rs3_data_i};
 assign exu2fpu_src_fmt_o = fpnew_pkg::FP32;
 assign exu2fpu_dst_fmt_o = fpnew_pkg::FP32;
 
@@ -943,7 +943,15 @@ always_comb begin
         default                 : exu_rdy = 1'b1;
     endcase
 end
+`ifdef SCR1_RVF_EXT
+    // ... существующая логика FPU ...
 
+    // Исправление: Подключение флагов статуса FPU к выходным флагам FPU для CSR
+    // Это присваивание должно происходить, когда результат FPU валиден и зафиксирован
+    assign exu2csr_fpu_flags_o = fpu2exu_status_i;
+
+    // ... остальная часть логики FPU ...
+`endif
 assign exu2pipe_init_pc_o       = init_pc;
 assign exu2idu_rdy_o            = exu_rdy & ~exu_queue_barrier;
 assign exu2pipe_exu_busy_o      = exu_queue_vd & ~exu_rdy;
@@ -1011,7 +1019,7 @@ assign exu2mprf_w_req_o   = (exu_queue.rd_wb_sel != SCR1_RD_WB_NONE) & exu_queue
 `ifdef SCR1_DBG_EN
                           & ~hdu2exu_no_commit_i
 `endif // SCR1_DBG_EN
-                          & ((exu_queue.rd_wb_sel == SCR1_RD_WB_CSR) ? csr_access_init : exu_rdy);
+                          & ((exu_queue.rd_wb_sel == SCR1_RD_WB_CSR) ? csr_access_init : exu_rdy)| (exu_queue.fpu_cmd == FPU_CMD_MV_X_F & exu_queue_vd);
 
 assign exu2mprf_rd_addr_o = `SCR1_MPRF_AWIDTH'(exu_queue.rd_addr);
 
@@ -1023,7 +1031,9 @@ always_comb begin
         SCR1_RD_WB_INC_PC: exu2mprf_rd_data_o = inc_pc;
         SCR1_RD_WB_LSU   : exu2mprf_rd_data_o = lsu_l_data;
         SCR1_RD_WB_CSR   : exu2mprf_rd_data_o = csr2exu_r_data_i;
-        SCR1_RD_WB_FPRF_RS1: exu2mprf_rd_data_o = fprf2exu_rs1_data_i; // NEW
+        SCR1_RD_WB_FPRF_RS1: exu2mprf_rd_data_o = (exu_queue.fpu_cmd == FPU_CMD_MV_X_F) ? fprf2exu_rs1_data_i : // fmv.x.w
+                            '0;
+ // NEW
         default          : exu2mprf_rd_data_o = ialu_main_res;
     endcase
 end
@@ -1041,11 +1051,15 @@ assign exu2fprf_rd_addr_o = exu_queue.rd_addr;
 
 assign exu2fprf_w_req_o = (fpu_state_ff == FPU_DONE) |
                           (exu_queue.lsu_cmd == LSU_CMD_FLW & lsu_rdy) |
-                          (exu_queue.fpu_cmd == FPU_CMD_MV_X_F & exu_queue_vd); // NEW
+                          (exu_queue.fpu_cmd == FPU_CMD_MV_F_X & exu_queue_vd); // fmv.w.x
 assign exu2fprf_rd_data_o = (fpu_state_ff == FPU_DONE) ? fpu2exu_result_i :
                             (exu_queue.lsu_cmd == LSU_CMD_FLW) ? lsu_l_data :
-                            (exu_queue.fpu_cmd == FPU_CMD_MV_X_F) ? mprf2exu_rs1_data_i : // NEW
+                            (exu_queue.fpu_cmd == FPU_CMD_MV_F_X) ? mprf2exu_rs1_data_i : // fmv.w.x
                             '0;
+
+
+
+
 
 `endif
 //------------------------------------------------------------------------------

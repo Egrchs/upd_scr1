@@ -121,7 +121,8 @@ typedef enum logic [SCR1_LSU_CMD_WIDTH_E-1:0] {
     SCR1_LSU_CMD_SH,
     SCR1_LSU_CMD_SW
     `ifdef SCR1_RVF_EXT
-    , LSU_CMD_FLW, LSU_CMD_FSW
+    , LSU_CMD_FSW,
+      LSU_CMD_FLW
     `endif
 } type_scr1_lsu_cmd_sel_e;
 
