@@ -34,8 +34,8 @@ OBJ_DIR       := $(BUILD_DIR)/mips_obj
 LINKER_SCRIPT := mips_link.ld
 
 # Флаги
-ASFLAGS := -mips1
-LDFLAGS := -T $(LINKER_SCRIPT)
+ASFLAGS := -mips1 -EL
+LDFLAGS := -T $(LINKER_SCRIPT) -EL
 
 # ---------------------------------------------------------------------------
 #  Определение целей сборки
