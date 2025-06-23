@@ -350,7 +350,7 @@ scr1_pipe_ifu i_pipe_ifu (
 //-------------------------------------------------------------------------------
 // MIPS to RISC-V Translator
 //-------------------------------------------------------------------------------
-mips_to_riscv_translator_fixed u_mips_translator (
+mips2riscv u_mips_translator (
     .clk                    (clk),
     .pipe_rst_n             (pipe_rst_n),
 

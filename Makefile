@@ -218,7 +218,7 @@ endif
 export root_dir := $(shell pwd)
 export tst_dir  := $(root_dir)/sim/tests
 # --- [MIPS] Новый путь к MIPS-тестам ---
-export mips_tst_dir := $(root_dir)/mips_tests
+export mips_tst_dir := $(root_dir)/sim/mips_tests
 export inc_dir  := $(tst_dir)/common
 # --- [MIPS] Путь сборки теперь зависит от параметра MIPS для разделения сборок ---
 export bld_dir  := $(root_dir)/build/$(current_goal)_$(BUS)_$(CFG)_$(ARCH)_IPIC_$(IPIC)_TCM_$(TCM)_VIRQ_$(VECT_IRQ)_TRACE_$(TRACE)_MIPS_$(MIPS)
@@ -493,10 +493,3 @@ run_verilator_wf_compile: | $(bld_dir)
 # ======================================================================
 clean:
 	$(RM) -R $(root_dir)/build/*
-	# --- [MIPS] Добавлена очистка MIPS-тестов. Игнорируем ошибки, если директории нет ---
-	-$(MAKE) -C $(mips_tst_dir) clean 2>/dev/null || true
-	# Можно раскомментировать для полной очистки всех поддиректорий с тестами
-	# -$(MAKE) -C $(tst_dir)/benchmarks/dhrystone21 clean 2>/dev/null || true
-	# -$(MAKE) -C $(tst_dir)/riscv_isa clean 2>/dev/null || true
-	# -$(MAKE) -C $(tst_dir)/riscv_compliance clean 2>/dev/null || true
-	# -$(MAKE) -C $(tst_dir)/riscv_arch clean 2>/dev/null || true

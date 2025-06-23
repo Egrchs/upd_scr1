@@ -5,7 +5,7 @@
 // - Конечный автомат расширен для условной генерации инструкций.
 // - ВЕРСИЯ С ИСПРАВЛЕНИЯМИ: добавлена поддержка SUBU и исправлена трансляция LUI.
 // =====================================================================
-module mips_to_riscv_translator_fixed (
+module mips2riscv(
     input  logic        clk,
     input  logic        pipe_rst_n,
     input  logic [31:0] mips_instruction,
@@ -45,7 +45,7 @@ module mips_to_riscv_translator_fixed (
   // Константы для поля funct R-Type инструкций
   localparam MIPS_FNC_JR   = 6'b001000;
   localparam MIPS_FNC_ADDU = 6'b100001;
-  localparam MIPS_FNC_SUBU = 6'b100011; // <-- ДОБАВЛЕНО
+  localparam MIPS_FNC_SUBU = 6'b100011;
   localparam MIPS_FNC_SLTU = 6'b101011;
   localparam MIPS_FNC_OR   = 6'b100101;
   localparam MIPS_FNC_SLL  = 6'b000000;
