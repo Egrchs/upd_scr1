@@ -6,20 +6,23 @@
 //-------------------------------------------------------------------------------
 // Run tests
 //-------------------------------------------------------------------------------
+
 `ifdef USE_WSL_WRAPPER
     string cmd;
     string bld_dir;
+
+    initial begin
+        `ifdef USE_WSL_WRAPPER
+            if (!$value$plusargs("bld_dir=%s", bld_dir)) begin
+                $fatal(1, "Plusarg +bld_dir=<path> is not specified!");
+            end
+        `endif
+    end
 `endif
 
 initial begin
     $value$plusargs("imem_pattern=%h", imem_req_ack_stall);
     $value$plusargs("dmem_pattern=%h", dmem_req_ack_stall);
-
-`ifdef USE_WSL_WRAPPER
-    if (!$value$plusargs("bld_dir=%s", bld_dir)) begin
-        $fatal(1, "Plusarg +bld_dir=<path> is not specified!");
-    end
-`endif
 
 `ifdef SIGNATURE_OUT
     $value$plusargs("test_name=%s", s_testname);
@@ -78,18 +81,12 @@ always_ff @(posedge clk) begin
                 $fwrite(fd, "%s", tmpstr);
                 $fclose(fd);
 
-// ----- УНИВЕРСАЛЬНЫЙ БЛОК ВЫЗОВА КОМАНДЫ -----
-`ifdef USE_WSL_WRAPPER
-    // Сценарий: ModelSim на Windows, запущенный из WSL
-    cmd = $sformatf("wsl.exe --cd %s sh script.sh", bld_dir);
-    $display("INFO: Using WSL wrapper for ModelSim: %s", cmd);
-    void'($system(cmd));
-`else
-    // Сценарий по умолчанию: все нативные Linux-инструменты (Verilator, ModelSim on Linux, etc.)
-    $system("sh script.sh");
-`endif
-
-// ----------------------------------------------
+                `ifdef USE_WSL_WRAPPER
+                    cmd = $sformatf("wsl.exe --cd %s sh script.sh", bld_dir);
+                    void'($system(cmd));
+                `else
+                    $system("sh script.sh");
+                `endif
 
                 fd = $fopen("elfinfo", "r");
                 if (fd == 0) begin
