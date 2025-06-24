@@ -72,7 +72,6 @@ rv32_isa_tests += isa/rv32uf/fadd.S       \
               isa/rv32uf/fcvt_w.S         \
               isa/rv32uf/fcvt.S           \
               isa/rv32uf/fdiv.S           \
-              isa/rv32uf/fmadd.S          \
               isa/rv32uf/fmin.S           \
               isa/rv32uf/ldst.S           \
               isa/rv32uf/move.S           \

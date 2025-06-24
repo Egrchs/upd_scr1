@@ -85,6 +85,10 @@ module scr1_pipe_csr (
     output  logic                                       csr2exu_irq_o,              // IRQ request
     output  logic                                       csr2exu_ip_ie_o,            // Some IRQ pending and locally enabled
     output  logic                                       csr2exu_mstatus_mie_up_o,   // MSTATUS or MIE update in the current cycle
+`ifdef SCR1_RVF_EXT
+    input   logic [4:0]                                 exu2csr_fpu_flags_i,
+`endif
+
 
 `ifdef SCR1_IPIC_EN
     // CSR <-> IPIC interface
@@ -116,9 +120,7 @@ module scr1_pipe_csr (
     input   type_scr1_csr_resp_e                        tdu2csr_resp_i,             // TDU response
 `endif // SCR1_TDU_EN
 
-`ifdef SCR1_RVF_EXT
-    input   logic [4:0]                                 exu2csr_fpu_flags_i,
-`endif
+
 
     // CSR <-> EXU PC interface
 `ifndef SCR1_CSR_REDUCED_CNT
@@ -670,16 +672,14 @@ always_comb begin
     csr_mstatus[SCR1_CSR_MSTATUS_MPIE_OFFSET]                              = csr_mstatus_mpie_ff;
     csr_mstatus[SCR1_CSR_MSTATUS_MPP_OFFSET+1:SCR1_CSR_MSTATUS_MPP_OFFSET] = SCR1_CSR_MSTATUS_MPP;
 end
-`ifdef SCR1_RVF_EXT
+`ifdef SCR1_RVF_EXT  // ДОбавление FCSR регистра
 always_ff @(posedge clk, negedge rst_n) begin
     if (~rst_n) begin
         csr_fcsr_ff <= '0;
     end else begin
-        // Флаги от FPU имеют приоритет и накапливаются
         if (|exu2csr_fpu_flags_i) begin
             csr_fcsr_ff[4:0] <= csr_fcsr_ff[4:0] | exu2csr_fpu_flags_i;
         end else if (csr_fcsr_upd) begin
-            // Запись через CSR-инструкцию
             case (exu2csr_rw_addr_i)
                 SCR1_CSR_ADDR_FFLAGS: csr_fcsr_ff[4:0] <= csr_w_data[4:0];
                 SCR1_CSR_ADDR_FRM:    csr_fcsr_ff[7:5] <= csr_w_data[7:5];

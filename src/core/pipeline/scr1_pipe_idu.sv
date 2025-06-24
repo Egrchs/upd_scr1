@@ -144,7 +144,7 @@ always_comb begin
                 idu2exu_cmd_o.rs2_addr    = instr[24:20];
                 idu2exu_cmd_o.rd_addr     = instr[11:7];
                 `ifdef SCR1_RVF_EXT
-                idu2exu_cmd_o.rs3_addr    = instr[31:27];
+                idu2exu_cmd_o.rs3_addr    = instr[31:27];   // опрделение адреса регистра FRS3
                 `endif
                 case (rvi_opcode)
                  `ifdef SCR1_RVF_EXT
@@ -154,26 +154,27 @@ always_comb begin
                         idu2exu_use_rd_o          = 1'b1;
                         idu2exu_use_imm_o         = 1'b1;
                         `endif
-                        idu2exu_cmd_o.is_fp_op    = 1'b1; // Отмечаем, что rd - это FPRF
+                        idu2exu_cmd_o.is_fp_op    = 1'b1;
                         idu2exu_cmd_o.sum2_op     = SCR1_SUM2_OP_REG_IMM;
                         idu2exu_cmd_o.lsu_cmd     = LSU_CMD_FLW;
                         idu2exu_cmd_o.rd_wb_sel   = SCR1_RD_WB_LSU;
                         idu2exu_cmd_o.imm         = {{21{instr[31]}}, instr[30:20]};
                     end
 
+
                     SCR1_OPCODE_STORE_FP: begin // FSW
-                        idu2exu_use_rs1_o         = 1'b1; // base
-                        idu2exu_use_rs2_o         = 1'b1; // src
+                        idu2exu_use_rs1_o         = 1'b1;
+                        idu2exu_use_rs2_o         = 1'b1;
                         `ifndef SCR1_NO_EXE_STAGE
                         idu2exu_use_imm_o         = 1'b1;
                         `endif
-                        idu2exu_cmd_o.is_fp_op    = 1'b1; // Отмечаем, что rs1/rs2 - это FPRF
+                        idu2exu_cmd_o.is_fp_op    = 1'b1;
                         idu2exu_cmd_o.sum2_op     = SCR1_SUM2_OP_REG_IMM;
                         idu2exu_cmd_o.lsu_cmd     = LSU_CMD_FSW;
                         idu2exu_cmd_o.imm         = {{21{instr[31]}}, instr[30:25], instr[11:7]};
                     end
 
-                    SCR1_OPCODE_OP_FP: begin // F-инструкции R-типа
+                    SCR1_OPCODE_OP_FP: begin // инструкции для FPU
                         idu2exu_use_rs1_o         = 1'b1;
                         `ifndef SCR1_NO_EXE_STAGE
                         idu2exu_use_rd_o          = 1'b1;
@@ -183,18 +184,19 @@ always_comb begin
                         idu2exu_cmd_o.fpu_rm      = funct3;
 
                         case (funct7)
-                            7'b0000000: begin idu2exu_cmd_o.fpu_cmd = FPU_CMD_ADD; idu2exu_use_rs2_o = 1'b1; end // FADD.S
-                            7'b0000100: begin idu2exu_cmd_o.fpu_cmd = FPU_CMD_SUB; idu2exu_use_rs2_o = 1'b1; end // FSUB.S
-                            7'b0001000: begin idu2exu_cmd_o.fpu_cmd = FPU_CMD_MUL; idu2exu_use_rs2_o = 1'b1; end // FMUL.S
-                            7'b0001100: begin idu2exu_cmd_o.fpu_cmd = FPU_CMD_DIV; idu2exu_use_rs2_o = 1'b1; end // FDIV.S
-                            7'b0101100: begin idu2exu_cmd_o.fpu_cmd = FPU_CMD_SQRT; end // FSQRT.S
-                            7'b0010000: begin idu2exu_cmd_o.fpu_cmd = FPU_CMD_SGNJ; idu2exu_use_rs2_o = 1'b1; end // FSGNJ/N/X.S
-                            7'b0010100: begin idu2exu_cmd_o.fpu_cmd = FPU_CMD_MINMAX; idu2exu_use_rs2_o = 1'b1; end // FMIN/MAX.S
-                            7'b1100000: begin idu2exu_cmd_o.fpu_cmd = FPU_CMD_CVT_I_F; end // FCVT.W/WU.S
-                            7'b1110000: begin idu2exu_cmd_o.fpu_cmd = FPU_CMD_MV_X_F; end // FMV.X.W/FCLASS.S
-                            7'b1101000: begin idu2exu_cmd_o.fpu_cmd = FPU_CMD_CVT_F_I; end // FCVT.S.W/WU
-                            7'b1111000: begin idu2exu_cmd_o.fpu_cmd = FPU_CMD_MV_F_X; end // FMV.W.X
-                            7'b1010000: begin idu2exu_cmd_o.fpu_cmd = FPU_CMD_CMP; idu2exu_use_rs2_o = 1'b1; end // FEQ/LT/LE.S
+                            7'b0000000: begin idu2exu_cmd_o.fpu_cmd   = FPU_CMD_ADD; idu2exu_use_rs2_o = 1'b1;end    // FADD
+                            7'b0000100: begin idu2exu_cmd_o.fpu_cmd   = FPU_CMD_SUB; idu2exu_use_rs2_o = 1'b1;end    // FSUB
+                            7'b0001000: begin idu2exu_cmd_o.fpu_cmd   = FPU_CMD_MUL; idu2exu_use_rs2_o = 1'b1;end    // FMUL
+                            7'b0001100: begin idu2exu_cmd_o.fpu_cmd   = FPU_CMD_DIV; idu2exu_use_rs2_o = 1'b1;end    // FDIV
+                            7'b0101100: begin idu2exu_cmd_o.fpu_cmd   = FPU_CMD_SQRT;end                             // FSQRT
+                            7'b0010000: begin idu2exu_cmd_o.fpu_cmd   = FPU_CMD_SGNJ; idu2exu_use_rs2_o = 1'b1;end   // FSGNJ/N/X
+                            7'b0010100: begin idu2exu_cmd_o.fpu_cmd   = FPU_CMD_MINMAX; idu2exu_use_rs2_o = 1'b1;end // FMIN/MAX
+                            7'b1100000: begin idu2exu_cmd_o.fpu_cmd   = FPU_CMD_CVT_I_F;end                          // FCVT.W
+                            7'b1110000: begin idu2exu_cmd_o.fpu_cmd   = FPU_CMD_MV_X_F;
+                                              idu2exu_cmd_o.rd_wb_sel = SCR1_RD_WB_FPRF_RS1;end                      // FMV.X.W/FCLASS
+                            7'b1101000: begin idu2exu_cmd_o.fpu_cmd   = FPU_CMD_CVT_F_I;end                          // FCVT.S.W/WU
+                            7'b1111000: begin idu2exu_cmd_o.fpu_cmd   = FPU_CMD_MV_F_X;end                           // FMV.W.X
+                            7'b1010000: begin idu2exu_cmd_o.fpu_cmd   = FPU_CMD_CMP; idu2exu_use_rs2_o = 1'b1;end    // FEQ/LT/LE
                             default: rvi_illegal = 1'b1;
                         endcase
                     end

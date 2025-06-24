@@ -518,8 +518,8 @@ scr1_pipe_mprf i_pipe_mprf (
 // Floating-point register file //------------------------------------------------------------------------------- i
 `ifdef SCR1_RVF_EXT
 scr1_pipe_fprf i_pipe_fprf (
-                            .clk(clk),
                             .rst_n                  (pipe_rst_n   ),
+                            .clk(clk),
                             .exu2fprf_frs1_addr_i(exu2fprf_rs1_addr),
                             .fprf2exu_frs1_data_o(fprf2exu_rs1_data),
                             .exu2fprf_frs2_addr_i(exu2fprf_rs2_addr),

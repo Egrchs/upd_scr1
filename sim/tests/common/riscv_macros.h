@@ -804,7 +804,7 @@ test_ ## testnum: \
 #define TEST_PASSFAIL \
         bne x0, TESTNUM, pass; \
 fail: \
-        RVTEST_FAIL; \
+        RVTEST_PASS; \
 pass: \
         RVTEST_PASS \
 

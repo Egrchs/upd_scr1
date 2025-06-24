@@ -10,7 +10,7 @@ module scr1_pipe_fprf (
     // Common
 `ifdef SCR1_MPRF_RST_EN
     input   logic                               rst_n,                      // FPRF reset
-`endif // SCR1_FPRF_RST_EN
+`endif // SCR1_MPRF_RST_EN
     input   logic                               clk,                        // FPRF clock
 
     // EXU <-> FPRF interface

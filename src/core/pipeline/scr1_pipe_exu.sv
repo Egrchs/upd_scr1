@@ -531,16 +531,14 @@ end
 assign exu2fpu_req_o = (fpu_state_ff == FPU_IDLE) & exu_queue_vd & exu_queue.is_fp_op &
                        (exu_queue.fpu_cmd != FPU_CMD_MV_X_F); // NEW
 
-assign exu2fpu_operands_o = {mprf2exu_rs1_data_i, mprf2exu_rs2_data_i, fprf2exu_rs3_data_i};
+assign exu2fpu_operands_o = {fprf2exu_rs1_data_i, fprf2exu_rs2_data_i, fprf2exu_rs3_data_i};
 assign exu2fpu_src_fmt_o = fpnew_pkg::FP32;
 assign exu2fpu_dst_fmt_o = fpnew_pkg::FP32;
 
 
 always_comb begin
-    //exu2fpu_op_o = fpnew_pkg::ADD; // Значение по умолчанию
     case (exu_queue.fpu_cmd)
         FPU_CMD_ADD: exu2fpu_op_o = fpnew_pkg::ADD;
-        FPU_CMD_SUB: exu2fpu_op_o = fpnew_pkg::FNMSUB;
         FPU_CMD_MUL: exu2fpu_op_o = fpnew_pkg::MUL;
         FPU_CMD_DIV: exu2fpu_op_o = fpnew_pkg::DIV;
         FPU_CMD_SQRT: exu2fpu_op_o = fpnew_pkg::SQRT;
@@ -550,8 +548,7 @@ always_comb begin
         FPU_CMD_CMP: exu2fpu_op_o = fpnew_pkg::CMP;
         FPU_CMD_CVT_F_I: exu2fpu_op_o = fpnew_pkg::F2I;
         FPU_CMD_CVT_I_F: exu2fpu_op_o = fpnew_pkg::I2F;
-        // Добавьте сюда другие команды по мере необходимости
-        //default: exu2fpu_op_o = fpnew_pkg::ADD;
+        default: exu2fpu_op_o = fpnew_pkg::ADD;
     endcase
 end
 
@@ -572,18 +569,18 @@ end
 
 fpnew_top #(
     .Features          (fpnew_pkg::RV32F),
-    .Implementation    (fpnew_pkg::DEFAULT_NOREGS), // Или другую реализацию, если хотите
-    .TagType           (logic) // Если не используете теги, то logic
+    .Implementation    (fpnew_pkg::DEFAULT_NOREGS),
+    .TagType           (logic)
 ) i_fpnew (
     .clk_i             (clk),
     .rst_ni            (rst_n),
     .operands_i        (exu2fpu_operands_o),
     .rnd_mode_i        (exu2fpu_rnd_mode_o),
     .op_i              (exu2fpu_op_o),
-    .op_mod_i          (1'b0), // Для некоторых операций, таких как FMSUB
+    .op_mod_i          (1'b0),
     .src_fmt_i         (exu2fpu_src_fmt_o),
     .dst_fmt_i         (exu2fpu_dst_fmt_o),
-    .int_fmt_i         (fpnew_pkg::INT32), // Для FCVT, FCLASS
+    .int_fmt_i         (fpnew_pkg::INT32),
     .vectorial_op_i    (1'b0),
     .tag_i             (1'b0),
     .in_valid_i        (exu2fpu_req_o),
@@ -593,7 +590,7 @@ fpnew_top #(
     .status_o          (fpu2exu_status_i),
     .tag_o             (),
     .out_valid_o       (fpu2exu_valid_i),
-    .out_ready_i       (fpu_state_ff == FPU_DONE), // EXU готов принять результат после FPU_DONE
+    .out_ready_i       (fpu_state_ff == FPU_DONE),
     .busy_o            ()
 );
 // Инстанс FPNew

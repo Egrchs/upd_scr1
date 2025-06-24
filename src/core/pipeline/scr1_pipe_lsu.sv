@@ -167,13 +167,13 @@ assign lsu_cmd_ff_load  = (lsu_cmd_ff == SCR1_LSU_CMD_LB )
                         | (lsu_cmd_ff == SCR1_LSU_CMD_LHU)
                         | (lsu_cmd_ff == SCR1_LSU_CMD_LW )
                         `ifdef SCR1_RVF_EXT
-                        | (lsu_cmd_ff == LSU_CMD_FLW)
+                        | (lsu_cmd_ff == LSU_CMD_FLW)  // добавление команды загрузки для F-расширения
                         `endif;
 assign lsu_cmd_ff_store = (lsu_cmd_ff == SCR1_LSU_CMD_SB )
                         | (lsu_cmd_ff == SCR1_LSU_CMD_SH )
                         | (lsu_cmd_ff == SCR1_LSU_CMD_SW )
                         `ifdef SCR1_RVF_EXT
-                        | (lsu_cmd_ff == LSU_CMD_FSW)
+                        | (lsu_cmd_ff == LSU_CMD_FSW)  // добавление команды хранения для F-расширения
                         `endif;
 
 //------------------------------------------------------------------------------
@@ -262,7 +262,7 @@ always_comb begin
         SCR1_LSU_CMD_LHU: lsu2exu_ldata_o = { 16'b0,                     dmem2lsu_rdata_i[15:0]};
         SCR1_LSU_CMD_LB : lsu2exu_ldata_o = {{24{dmem2lsu_rdata_i[7]}},  dmem2lsu_rdata_i[7:0]};
         SCR1_LSU_CMD_LBU: lsu2exu_ldata_o = { 24'b0,                     dmem2lsu_rdata_i[7:0]};
-                `ifdef SCR1_RVF_EXT
+        `ifdef SCR1_RVF_EXT     // выгрузка данных из памяти для EXU
         LSU_CMD_FLW:      lsu2exu_ldata_o = dmem2lsu_rdata_i;
         `endif
         default         : lsu2exu_ldata_o = dmem2lsu_rdata_i;

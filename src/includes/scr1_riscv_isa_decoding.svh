@@ -173,9 +173,20 @@ typedef enum logic [SCR1_RD_WB_WIDTH_E-1:0] {
 `ifdef SCR1_RVF_EXT
 // FPU commands
 typedef enum logic [3:0] {
-    FPU_CMD_NONE, FPU_CMD_ADD, FPU_CMD_SUB, FPU_CMD_MUL, FPU_CMD_DIV, FPU_CMD_SQRT,
-    FPU_CMD_SGNJ, FPU_CMD_MINMAX, FPU_CMD_CVT_F_I, FPU_CMD_CVT_I_F, FPU_CMD_CMP,
-    FPU_CMD_CLASS, FPU_CMD_MV_X_F, FPU_CMD_MV_F_X
+    FPU_CMD_NONE,
+    FPU_CMD_ADD,
+    FPU_CMD_SUB,
+    FPU_CMD_MUL,
+    FPU_CMD_DIV,
+    FPU_CMD_SQRT,
+    FPU_CMD_SGNJ,
+    FPU_CMD_MINMAX,
+    FPU_CMD_CVT_F_I,
+    FPU_CMD_CVT_I_F,
+    FPU_CMD_CMP,
+    FPU_CMD_CLASS,
+    FPU_CMD_MV_X_F,
+    FPU_CMD_MV_F_X
 } type_scr1_fpu_cmd_e;
 `endif
 
@@ -221,10 +232,7 @@ typedef struct packed {
     logic                               is_fp_op;
     type_scr1_fpu_cmd_e                 fpu_cmd;
     logic [2:0]                         fpu_rm;
-    //logic [4:0]                         frs1_addr;
-    //logic [4:0]                         frs2_addr;
     logic [4:0]                         rs3_addr;
-    //logic [4:0]                         frd_addr;
     `endif
 } type_scr1_exu_cmd_s;
 
