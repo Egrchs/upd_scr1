@@ -113,9 +113,11 @@ always_comb begin
     idu2exu_cmd_o.imm         = '0;
     idu2exu_cmd_o.exc_req     = 1'b0;
     idu2exu_cmd_o.exc_code    = SCR1_EXC_CODE_INSTR_MISALIGN;
+`ifdef SCR1_RVF_EXT
     idu2exu_cmd_o.rs3_addr    = '0;
     idu2exu_cmd_o.fpu_rm      = '0;
     idu2exu_cmd_o.fpu_cmd     =  FPU_CMD_NONE;
+`endif
     // Clock gating
     idu2exu_use_rs1_o         = 1'b0;
     idu2exu_use_rs2_o         = 1'b0;

@@ -1,6 +1,26 @@
-# SCR1 RISC-V Core
+# Модификация модулей для поддержки F расширения
 
-SCR1 is an open-source and free to use RISC-V compatible MCU-class core, designed and maintained by Syntacore. It is industry-grade and silicon-proven (including full-wafer production), works out of the box in all major EDA flows and Verilator, and comes with extensive collateral and documentation.
-
+# Модуль декодера
+В модуль декодера была добавлена определние использования регистра frs3, распознование команд для F расширения.
 ![decoder](./img/decoder_work.png)
 
+
+# Модуль статусного регистра
+
+
+
+# Модуль загрузки/выгрузки
+Для доработки модуля загрузки выгрузки необходмо только добавить название
+![decoder](./img/LSU_work.png)
+
+# Модуль регистрвого файла для чисел с плавающей запятой
+В модуль декодера была добавлена определние использования регистра frs3, распознование команд для F расширения.
+![decoder](./img/fprf_work.png)
+
+# Модуль исполнителя
+
+
+
+# Модуль ФПУ
+
+![decoder](./img/FPU_work.png)

@@ -519,7 +519,7 @@ end
 always_comb begin
     fpu_state_next = fpu_state_ff;
     case (fpu_state_ff)
-        FPU_IDLE: if (exu_queue_vd & exu_queue.is_fp_op & fpu2exu_ready_i & (exu_queue.fpu_cmd != FPU_CMD_MV_X_F)) // NEW
+        FPU_IDLE: if (exu_queue_vd & exu_queue.is_fp_op & fpu2exu_ready_i & (exu_queue.fpu_cmd != FPU_CMD_MV_X_F))
             fpu_state_next = FPU_BUSY;
         FPU_BUSY: if (fpu2exu_valid_i)
                     fpu_state_next = FPU_DONE;
@@ -529,9 +529,9 @@ end
 
 // Управляющие сигналы
 assign exu2fpu_req_o = (fpu_state_ff == FPU_IDLE) & exu_queue_vd & exu_queue.is_fp_op &
-                       (exu_queue.fpu_cmd != FPU_CMD_MV_X_F); // NEW
+                       (exu_queue.fpu_cmd != FPU_CMD_MV_X_F);
 
-assign exu2fpu_operands_o = {fprf2exu_rs1_data_i, fprf2exu_rs2_data_i, fprf2exu_rs3_data_i};
+assign exu2fpu_operands_o = {32'b01000010110010110001100110011010, 32'b01000001000100000000110010110011, 32'b01000010000100110001010010101111};
 assign exu2fpu_src_fmt_o = fpnew_pkg::FP32;
 assign exu2fpu_dst_fmt_o = fpnew_pkg::FP32;
 
@@ -554,7 +554,6 @@ end
 
 
 always_comb begin
-    exu2fpu_rnd_mode_o = fpnew_pkg::RNE; // Значение по умолчанию
     case (exu_queue.fpu_rm)
         FPU_RND_RNE: exu2fpu_rnd_mode_o = fpnew_pkg::RNE;
         FPU_RND_RTZ: exu2fpu_rnd_mode_o = fpnew_pkg::RTZ;
@@ -562,7 +561,6 @@ always_comb begin
         FPU_RND_RUP: exu2fpu_rnd_mode_o = fpnew_pkg::RUP;
         FPU_RND_RMM: exu2fpu_rnd_mode_o = fpnew_pkg::RMM;
         FPU_RND_DYN: exu2fpu_rnd_mode_o = fpnew_pkg::DYN;
-        // Добавьте сюда другие команды по мере необходимости
         default: exu2fpu_rnd_mode_o = fpnew_pkg::RNE;
     endcase
 end
