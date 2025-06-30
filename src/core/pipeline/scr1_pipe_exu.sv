@@ -223,8 +223,8 @@ logic                               exu_queue_vd_next;
 //FPU
 `ifdef SCR1_RVF_EXT
 // FPU Interface
-logic                        exu2fpu_req_o;         // Запрос к FPU
-fpnew_pkg::operation_e       exu2fpu_op_o;          // Операция FPU
+logic                        exu2fpu_req_o;          // Запрос к FPU
+fpnew_pkg::operation_e       exu2fpu_op_o;           // Операция FPU
 logic                        exu2fpu_op_mod_o;       // Модификатор операции
 fpnew_pkg::fp_format_e       exu2fpu_src_fmt_o;      // Исходный формат
 fpnew_pkg::fp_format_e       exu2fpu_dst_fmt_o;      // Целевой формат
@@ -531,10 +531,10 @@ end
 assign exu2fpu_req_o = (fpu_state_ff == FPU_IDLE) & exu_queue_vd & exu_queue.is_fp_op &
                        (exu_queue.fpu_cmd != FPU_CMD_MV_X_F);
 
-assign exu2fpu_operands_o = {32'b01000010110010110001100110011010, 32'b01000001000100000000110010110011, 32'b01000010000100110001010010101111};
+assign exu2fpu_operands_o = {fprf2exu_rs1_data_i, fprf2exu_rs2_data_i, fprf2exu_rs3_data_i};
 assign exu2fpu_src_fmt_o = fpnew_pkg::FP32;
 assign exu2fpu_dst_fmt_o = fpnew_pkg::FP32;
-
+assign exu2fpu_op_mod_o = idu2exu_cmd_i[25];
 
 always_comb begin
     case (exu_queue.fpu_cmd)
@@ -548,7 +548,7 @@ always_comb begin
         FPU_CMD_CMP: exu2fpu_op_o = fpnew_pkg::CMP;
         FPU_CMD_CVT_F_I: exu2fpu_op_o = fpnew_pkg::F2I;
         FPU_CMD_CVT_I_F: exu2fpu_op_o = fpnew_pkg::I2F;
-        default: exu2fpu_op_o = fpnew_pkg::ADD;
+        //default: exu2fpu_op_o = fpnew_pkg::ADD;
     endcase
 end
 
@@ -564,7 +564,6 @@ always_comb begin
         default: exu2fpu_rnd_mode_o = fpnew_pkg::RNE;
     endcase
 end
-
 fpnew_top #(
     .Features          (fpnew_pkg::RV32F),
     .Implementation    (fpnew_pkg::DEFAULT_NOREGS),
@@ -575,7 +574,7 @@ fpnew_top #(
     .operands_i        (exu2fpu_operands_o),
     .rnd_mode_i        (exu2fpu_rnd_mode_o),
     .op_i              (exu2fpu_op_o),
-    .op_mod_i          (1'b0),
+    .op_mod_i          (exu2fpu_op_mod_o),
     .src_fmt_i         (exu2fpu_src_fmt_o),
     .dst_fmt_i         (exu2fpu_dst_fmt_o),
     .int_fmt_i         (fpnew_pkg::INT32),
@@ -1026,8 +1025,8 @@ always_comb begin
         SCR1_RD_WB_INC_PC: exu2mprf_rd_data_o = inc_pc;
         SCR1_RD_WB_LSU   : exu2mprf_rd_data_o = lsu_l_data;
         SCR1_RD_WB_CSR   : exu2mprf_rd_data_o = csr2exu_r_data_i;
-        SCR1_RD_WB_FPRF_RS1: exu2mprf_rd_data_o = (exu_queue.fpu_cmd == FPU_CMD_MV_X_F) ? fprf2exu_rs1_data_i : // fmv.x.w
-                            '0;
+        //SCR1_RD_WB_FPRF_RS1: exu2mprf_rd_data_o = (exu_queue.fpu_cmd == FPU_CMD_MV_X_F) ? fprf2exu_rs1_data_i : // fmv.x.w
+         //                   '0;
  // NEW
         default          : exu2mprf_rd_data_o = ialu_main_res;
     endcase
