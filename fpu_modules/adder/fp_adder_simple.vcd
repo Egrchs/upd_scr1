@@ -1,0 +1,572 @@
+$date
+	Wed Jul  2 01:28:54 2025
+$end
+$version
+	QuestaSim Version 2021.2_1
+$end
+$timescale
+	1ps
+$end
+
+$scope module simple_fp_adder_test $end
+$var reg 1 ! clk $end
+$var reg 1 " rst $end
+$var reg 32 # input_a [31:0] $end
+$var reg 1 $ input_a_stb $end
+$var wire 1 % input_a_ack $end
+$var reg 32 & input_b [31:0] $end
+$var reg 1 ' input_b_stb $end
+$var wire 1 ( input_b_ack $end
+$var wire 1 ) output_z [31] $end
+$var wire 1 * output_z [30] $end
+$var wire 1 + output_z [29] $end
+$var wire 1 , output_z [28] $end
+$var wire 1 - output_z [27] $end
+$var wire 1 . output_z [26] $end
+$var wire 1 / output_z [25] $end
+$var wire 1 0 output_z [24] $end
+$var wire 1 1 output_z [23] $end
+$var wire 1 2 output_z [22] $end
+$var wire 1 3 output_z [21] $end
+$var wire 1 4 output_z [20] $end
+$var wire 1 5 output_z [19] $end
+$var wire 1 6 output_z [18] $end
+$var wire 1 7 output_z [17] $end
+$var wire 1 8 output_z [16] $end
+$var wire 1 9 output_z [15] $end
+$var wire 1 : output_z [14] $end
+$var wire 1 ; output_z [13] $end
+$var wire 1 < output_z [12] $end
+$var wire 1 = output_z [11] $end
+$var wire 1 > output_z [10] $end
+$var wire 1 ? output_z [9] $end
+$var wire 1 @ output_z [8] $end
+$var wire 1 A output_z [7] $end
+$var wire 1 B output_z [6] $end
+$var wire 1 C output_z [5] $end
+$var wire 1 D output_z [4] $end
+$var wire 1 E output_z [3] $end
+$var wire 1 F output_z [2] $end
+$var wire 1 G output_z [1] $end
+$var wire 1 H output_z [0] $end
+$var wire 1 I output_z_stb $end
+$var reg 1 J output_z_ack $end
+
+$scope module dut $end
+$var wire 1 K clk $end
+$var wire 1 L rst $end
+$var wire 1 M input_a [31] $end
+$var wire 1 N input_a [30] $end
+$var wire 1 O input_a [29] $end
+$var wire 1 P input_a [28] $end
+$var wire 1 Q input_a [27] $end
+$var wire 1 R input_a [26] $end
+$var wire 1 S input_a [25] $end
+$var wire 1 T input_a [24] $end
+$var wire 1 U input_a [23] $end
+$var wire 1 V input_a [22] $end
+$var wire 1 W input_a [21] $end
+$var wire 1 X input_a [20] $end
+$var wire 1 Y input_a [19] $end
+$var wire 1 Z input_a [18] $end
+$var wire 1 [ input_a [17] $end
+$var wire 1 \ input_a [16] $end
+$var wire 1 ] input_a [15] $end
+$var wire 1 ^ input_a [14] $end
+$var wire 1 _ input_a [13] $end
+$var wire 1 ` input_a [12] $end
+$var wire 1 a input_a [11] $end
+$var wire 1 b input_a [10] $end
+$var wire 1 c input_a [9] $end
+$var wire 1 d input_a [8] $end
+$var wire 1 e input_a [7] $end
+$var wire 1 f input_a [6] $end
+$var wire 1 g input_a [5] $end
+$var wire 1 h input_a [4] $end
+$var wire 1 i input_a [3] $end
+$var wire 1 j input_a [2] $end
+$var wire 1 k input_a [1] $end
+$var wire 1 l input_a [0] $end
+$var wire 1 m input_a_stb $end
+$var reg 1 n input_a_ack $end
+$var wire 1 o input_b [31] $end
+$var wire 1 p input_b [30] $end
+$var wire 1 q input_b [29] $end
+$var wire 1 r input_b [28] $end
+$var wire 1 s input_b [27] $end
+$var wire 1 t input_b [26] $end
+$var wire 1 u input_b [25] $end
+$var wire 1 v input_b [24] $end
+$var wire 1 w input_b [23] $end
+$var wire 1 x input_b [22] $end
+$var wire 1 y input_b [21] $end
+$var wire 1 z input_b [20] $end
+$var wire 1 { input_b [19] $end
+$var wire 1 | input_b [18] $end
+$var wire 1 } input_b [17] $end
+$var wire 1 ~ input_b [16] $end
+$var wire 1 !! input_b [15] $end
+$var wire 1 "! input_b [14] $end
+$var wire 1 #! input_b [13] $end
+$var wire 1 $! input_b [12] $end
+$var wire 1 %! input_b [11] $end
+$var wire 1 &! input_b [10] $end
+$var wire 1 '! input_b [9] $end
+$var wire 1 (! input_b [8] $end
+$var wire 1 )! input_b [7] $end
+$var wire 1 *! input_b [6] $end
+$var wire 1 +! input_b [5] $end
+$var wire 1 ,! input_b [4] $end
+$var wire 1 -! input_b [3] $end
+$var wire 1 .! input_b [2] $end
+$var wire 1 /! input_b [1] $end
+$var wire 1 0! input_b [0] $end
+$var wire 1 1! input_b_stb $end
+$var reg 1 2! input_b_ack $end
+$var reg 32 3! output_z [31:0] $end
+$var reg 1 4! output_z_stb $end
+$var wire 1 5! output_z_ack $end
+$var reg 4 6! state [3:0] $end
+$var reg 36 7! a [35:0] $end
+$var reg 36 8! b [35:0] $end
+$var reg 36 9! z [35:0] $end
+$var reg 1 :! guard $end
+$var reg 1 ;! round_bit $end
+$var reg 1 <! sticky $end
+$var reg 28 =! sum [27:0] $end
+$var reg 1 >! reg_output_z_stb $end
+$var reg 32 ?! reg_output_z [31:0] $end
+$var reg 1 @! reg_input_a_ack $end
+$var reg 1 A! reg_input_b_ack $end
+$upscope $end
+$upscope $end
+$enddefinitions $end
+#0
+$dumpvars
+0!
+1"
+bx #
+0$
+bx &
+0'
+0J
+xn
+x2!
+bx 3!
+x4!
+bx 6!
+bx 7!
+bx 8!
+bx 9!
+x:!
+x;!
+x<!
+bx =!
+x>!
+bx ?!
+x@!
+xA!
+x%
+x(
+xH
+xG
+xF
+xE
+xD
+xC
+xB
+xA
+x@
+x?
+x>
+x=
+x<
+x;
+x:
+x9
+x8
+x7
+x6
+x5
+x4
+x3
+x2
+x1
+x0
+x/
+x.
+x-
+x,
+x+
+x*
+x)
+xI
+05!
+01!
+x0!
+x/!
+x.!
+x-!
+x,!
+x+!
+x*!
+x)!
+x(!
+x'!
+x&!
+x%!
+x$!
+x#!
+x"!
+x!!
+x~
+x}
+x|
+x{
+xz
+xy
+xx
+xw
+xv
+xu
+xt
+xs
+xr
+xq
+xp
+xo
+0m
+xl
+xk
+xj
+xi
+xh
+xg
+xf
+xe
+xd
+xc
+xb
+xa
+x`
+x_
+x^
+x]
+x\
+x[
+xZ
+xY
+xX
+xW
+xV
+xU
+xT
+xS
+xR
+xQ
+xP
+xO
+xN
+xM
+1L
+0K
+$end
+#10000
+1!
+1K
+b0 6!
+0@!
+0A!
+0>!
+04!
+02!
+0n
+0I
+0(
+0%
+#20000
+0"
+b111111100000000000000000000000 #
+b1000000011000000000000000000000 &
+1$
+1'
+0!
+0L
+00!
+0/!
+0.!
+0-!
+0,!
+0+!
+0*!
+0)!
+0(!
+0'!
+0&!
+0%!
+0$!
+0#!
+0"!
+0!!
+0~
+0}
+0|
+0{
+0z
+1y
+1x
+0w
+0v
+0u
+0t
+0s
+0r
+0q
+1p
+0o
+0l
+0k
+0j
+0i
+0h
+0g
+0f
+0e
+0d
+0c
+0b
+0a
+0`
+0_
+0^
+0]
+0\
+0[
+0Z
+0Y
+0X
+0W
+0V
+1U
+1T
+1S
+1R
+1Q
+1P
+1O
+0N
+0M
+1m
+11!
+0K
+#30000
+1!
+1K
+1@!
+1n
+1%
+#40000
+0!
+0K
+#50000
+1!
+1K
+b0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx 7!
+b1111111xxxxxxxxxxxxxxxxxxxxxxxxxxx 7!
+b1111111000000000000000000000000000 7!
+0@!
+b1 6!
+0n
+0%
+#60000
+0!
+0K
+#70000
+1!
+1K
+1A!
+12!
+1(
+#80000
+0!
+0K
+#90000
+1!
+1K
+b0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx 8!
+b10000000xxxxxxxxxxxxxxxxxxxxxxxxxxx 8!
+b10000000011000000000000000000000000 8!
+0A!
+b10 6!
+02!
+0(
+#100000
+0!
+0K
+#110000
+1!
+1K
+b0 7!
+b1011000000000000000000000000 8!
+b11 6!
+#120000
+0!
+0K
+#130000
+1!
+1K
+b0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx 9!
+b10000000xxxxxxxxxxxxxxxxxxxxxxxxxxx 9!
+b10000000011000000000000000000000000 9!
+b1011 6!
+#140000
+0!
+0K
+#150000
+1!
+1K
+1>!
+b1111111100000000000000000000000 ?!
+b1111111100000000000000000000000 3!
+14!
+0H
+0G
+0F
+0E
+0D
+0C
+0B
+0A
+0@
+0?
+0>
+0=
+0<
+0;
+0:
+09
+08
+07
+06
+05
+04
+03
+02
+11
+10
+1/
+1.
+1-
+1,
+1+
+1*
+0)
+1I
+#160000
+0!
+0K
+#170000
+1!
+1K
+#180000
+0!
+0K
+#190000
+1!
+1K
+#200000
+0!
+0K
+#210000
+1!
+1K
+#220000
+0!
+0K
+#230000
+1!
+1K
+#240000
+0!
+0K
+#250000
+1!
+1K
+#260000
+0!
+0K
+#270000
+1!
+1K
+#280000
+0!
+0K
+#290000
+1!
+1K
+#300000
+0!
+0K
+#310000
+1!
+1K
+#320000
+0!
+0K
+#330000
+1!
+1K
+#340000
+0!
+0K
+#350000
+1!
+1K
+#360000
+0!
+0K
+#370000
+1!
+1K
+#380000
+0!
+0K
+#390000
+1!
+1K
+#400000
+0!
+0K
+#410000
+1!
+1K
+#420000
+0!
+0K
+#430000
+1!
+1K
+#440000
+0!
+0K
+#450000
+1!
+1K
+#460000
+0!
+0K
+#470000
+1!
+1K
+#480000
+0!
+0K
+#490000
+1!
+1K
+#500000
+0!
+0K
+#510000
+1!
+1K
